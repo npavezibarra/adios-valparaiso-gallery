@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Adios Valparaiso Gallery
  * Description: Shortcode para mostrar una galería fullscreen desde la carpeta "AdiosValparaiso" y permitir votación 0–5 estrellas por usuarios logeados.
- * Version: 0.1.26
+ * Version: 0.1.27
  * Author: Codex
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-define('AVP_GALLERY_VERSION', '0.1.26');
+define('AVP_GALLERY_VERSION', '0.1.27');
 define('AVP_GALLERY_PLUGIN_FILE', __FILE__);
 define('AVP_GALLERY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AVP_GALLERY_PLUGIN_URL', plugin_dir_url(__FILE__));

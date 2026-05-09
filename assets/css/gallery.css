@@ -683,3 +683,131 @@
 .avp-thumbs__sentinel {
 	height: 1px;
 }
+
+/* Thumbnails modal */
+.avp-thumbs-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	background: rgba(0, 0, 0, 0.88);
+	backdrop-filter: blur(4px);
+}
+
+.avp-thumbs-modal.is-active {
+	display: flex;
+}
+
+.avp-thumbs-modal__close {
+	position: absolute;
+	top: 18px;
+	right: 18px;
+	width: 42px;
+	height: 42px;
+	border-radius: 999px;
+	border: 0;
+	background: rgba(255, 255, 255, 0.12);
+	color: #fff;
+	font-size: 28px;
+	line-height: 42px;
+	cursor: pointer;
+}
+
+.avp-thumbs-modal__close:hover {
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.avp-thumbs-modal__content {
+	width: min(1000px, 96vw);
+	max-height: 86vh;
+	background: #fff;
+	border-radius: 20px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	animation: avp-modal-in 0.22s ease-out;
+}
+
+@keyframes avp-modal-in {
+	from { transform: scale(0.97); opacity: 0; }
+	to { transform: scale(1); opacity: 1; }
+}
+
+@media (min-width: 768px) {
+	.avp-thumbs-modal__content {
+		flex-direction: row;
+		height: 80vh;
+	}
+}
+
+.avp-thumbs-modal__img-side {
+	flex: 2;
+	background: #000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.avp-thumbs-modal__img {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+
+.avp-thumbs-modal__info-side {
+	flex: 1;
+	padding: 22px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: 14px;
+}
+
+.avp-thumbs-modal__title {
+	font-size: 20px;
+	font-weight: 700;
+	margin: 0 0 12px;
+	color: #111827;
+	overflow-wrap: anywhere;
+}
+
+.avp-thumbs-modal__rating-box {
+	background: #f3f4f6;
+	border-radius: 12px;
+	padding: 14px;
+}
+
+.avp-thumbs-modal__rating-label {
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgba(107, 114, 128, 1);
+	margin-bottom: 10px;
+}
+
+.avp-thumbs-modal__stars {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.avp-thumbs-modal__hint {
+	margin-top: 10px;
+	font-size: 12px;
+	color: rgba(107, 114, 128, 1);
+}
+
+.avp-thumbs-modal__primary {
+	background: #111827;
+	color: #fff;
+	border: 0;
+	padding: 12px 14px;
+	border-radius: 10px;
+	font-weight: 700;
+	cursor: pointer;
+	width: 100%;
+}

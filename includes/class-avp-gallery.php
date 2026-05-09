@@ -461,6 +461,23 @@ class AVP_Gallery {
 		$html .= '      </div>';
 		$html .= '      <div class="avp-thumbs__grid" role="list"></div>';
 		$html .= '      <div class="avp-thumbs__sentinel" aria-hidden="true"></div>';
+		$html .= '      <div class="avp-thumbs-modal" aria-hidden="true">';
+		$html .= '        <button class="avp-thumbs-modal__close" type="button" aria-label="Cerrar">×</button>';
+		$html .= '        <div class="avp-thumbs-modal__content" role="dialog" aria-modal="true" aria-label="Foto">';
+		$html .= '          <div class="avp-thumbs-modal__img-side"><img class="avp-thumbs-modal__img" alt="" /></div>';
+		$html .= '          <div class="avp-thumbs-modal__info-side">';
+		$html .= '            <div>';
+		$html .= '              <h2 class="avp-thumbs-modal__title"></h2>';
+		$html .= '              <div class="avp-thumbs-modal__rating-box">';
+		$html .= '                <div class="avp-thumbs-modal__rating-label">Tu evaluación</div>';
+		$html .= '                <div class="avp-thumbs-modal__stars" aria-label="Tu evaluación"></div>';
+		$html .= '              </div>';
+		$html .= '              <div class="avp-thumbs-modal__hint">Haz click en las estrellas para evaluar.</div>';
+		$html .= '            </div>';
+		$html .= '            <button class="avp-thumbs-modal__primary" type="button">Cerrar</button>';
+		$html .= '          </div>';
+		$html .= '        </div>';
+		$html .= '      </div>';
 		$html .= '    </section>';
 		$html .= '  </div>';
 

@@ -873,6 +873,14 @@
 		var visibleImages = images.slice();
 		var myRatings = {};
 		var filterMode = "all";
+		var currentModalItem = null;
+
+		var modal = root.querySelector(".avp-thumbs-modal");
+		var modalClose = modal ? modal.querySelector(".avp-thumbs-modal__close") : null;
+		var modalPrimary = modal ? modal.querySelector(".avp-thumbs-modal__primary") : null;
+		var modalImg = modal ? modal.querySelector(".avp-thumbs-modal__img") : null;
+		var modalTitle = modal ? modal.querySelector(".avp-thumbs-modal__title") : null;
+		var modalStars = modal ? modal.querySelector(".avp-thumbs-modal__stars") : null;
 
 		var pageSize = 24;
 		var renderedCount = 0;
@@ -958,6 +966,74 @@
 			if (grid) grid.innerHTML = "";
 		}
 
+		function closeModal() {
+			if (!modal) return;
+			modal.classList.remove("is-active");
+			modal.setAttribute("aria-hidden", "true");
+			try { document.body.style.overflow = ""; } catch (e) { }
+			currentModalItem = null;
+		}
+
+		function renderModalStars(item, currentRating) {
+			if (!modalStars) return;
+			modalStars.innerHTML = "";
+			for (var i = 1; i <= 5; i++) {
+				modalStars.appendChild(createStarButton(i, currentRating, function (val) {
+					if (!item) return;
+					setStatus("Guardando…");
+					ajax("avp_set_rating", { imageKey: item.key, imageUrl: item.url, rating: String(val) })
+						.then(function (res) {
+							if (!res || !res.success) throw new Error("failed");
+							myRatings[item.key] = res.data.userRating;
+
+							// Update any existing card stars in-place.
+							var card = grid ? grid.querySelector("[data-image-key='" + item.key + "']") : null;
+							if (card) {
+								var ratingEl = card.querySelector(".avp-thumbs__rating");
+								if (ratingEl) {
+									var newRating = parseInt(res.data.userRating, 10) || 0;
+									ratingEl.querySelectorAll(".avp-thumbs__star").forEach(function (b, idx) {
+										b.classList.toggle("is-on", (idx + 1) <= newRating);
+									});
+								}
+							}
+
+							applyFilter();
+							renderMore();
+							renderModalStars(item, parseInt(res.data.userRating, 10) || 0);
+							setStatus("");
+						})
+						.catch(function (e) {
+							var msg = (e && e.message) ? String(e.message) : "";
+							if (msg.toLowerCase().indexOf("unauthorized") !== -1) {
+								isLoggedIn = false;
+								myRatings = {};
+								applyFilter();
+								renderMore();
+								setStatus("Inicia sesión para evaluar");
+								return;
+							}
+							setStatus("No se pudo guardar");
+							setTimeout(function () { setStatus(""); }, 1200);
+						});
+				}));
+			}
+		}
+
+		function openModal(item) {
+			if (!modal || !item) return;
+			currentModalItem = item;
+			if (modalImg) modalImg.src = item.url || "";
+			if (modalTitle) modalTitle.textContent = item.name || "";
+
+			var currentRating = Object.prototype.hasOwnProperty.call(myRatings || {}, item.key) ? (parseInt(myRatings[item.key], 10) || 0) : 0;
+			renderModalStars(item, currentRating);
+
+			modal.classList.add("is-active");
+			modal.setAttribute("aria-hidden", "false");
+			try { document.body.style.overflow = "hidden"; } catch (e) { }
+		}
+
 		function createStarButton(value, currentValue, onClick) {
 			var btn = document.createElement("button");
 			btn.type = "button";
@@ -976,6 +1052,10 @@
 			var card = document.createElement("div");
 			card.className = "avp-thumbs__card";
 			card.setAttribute("role", "listitem");
+			card.dataset.imageKey = item.key;
+			card.addEventListener("click", function () {
+				openModal(item);
+			});
 
 			var safeName = document.createElement("div");
 			safeName.textContent = (item && item.name) ? String(item.name) : "";
@@ -1001,6 +1081,7 @@
 								myRatings[item.key] = res.data.userRating;
 								applyFilter();
 								renderMore();
+								resetAutoLoadAfterRerender();
 								setStatus("");
 							})
 							.catch(function (e) {
@@ -1010,6 +1091,7 @@
 									myRatings = {};
 									applyFilter();
 									renderMore();
+									resetAutoLoadAfterRerender();
 									setStatus("Inicia sesión para evaluar");
 									return;
 								}
@@ -1052,6 +1134,19 @@
 			observer.observe(sentinel);
 		}
 
+		function resetAutoLoadAfterRerender() {
+			// IntersectionObserver may not fire again if the sentinel was already intersecting.
+			// Re-observe and, if still close to the viewport, render more immediately.
+			setupObserver();
+			window.requestAnimationFrame(function () {
+				if (!sentinel) return;
+				var rect = sentinel.getBoundingClientRect();
+				if (rect.top < (window.innerHeight + 600)) {
+					renderMore();
+				}
+			});
+		}
+
 		function initNow() {
 			return ensureImagesLoaded()
 				.then(function () { return ensureAuthState(); })
@@ -1059,7 +1154,7 @@
 				.then(function () {
 					applyFilter();
 					renderMore();
-					setupObserver();
+					resetAutoLoadAfterRerender();
 					setStatus("");
 				});
 		}
@@ -1075,6 +1170,19 @@
 				filterMode = filterSelect.value || "all";
 				applyFilter();
 				renderMore();
+				resetAutoLoadAfterRerender();
+			});
+		}
+
+		if (modal) {
+			if (modalClose) modalClose.addEventListener("click", closeModal);
+			if (modalPrimary) modalPrimary.addEventListener("click", closeModal);
+			modal.addEventListener("click", function (e) {
+				if (e.target === modal) closeModal();
+			});
+			window.addEventListener("keydown", function (e) {
+				if (!modal.classList.contains("is-active")) return;
+				if (e.key === "Escape") closeModal();
 			});
 		}
 	}
