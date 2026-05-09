@@ -17,6 +17,8 @@ class AVP_Gallery {
 		add_action('wp_ajax_avp_set_rating', array(__CLASS__, 'ajax_set_rating'));
 		add_action('wp_ajax_avp_list_images', array(__CLASS__, 'ajax_list_images'));
 		add_action('wp_ajax_nopriv_avp_list_images', array(__CLASS__, 'ajax_list_images'));
+		add_action('wp_ajax_avp_ranking', array(__CLASS__, 'ajax_ranking'));
+		add_action('wp_ajax_nopriv_avp_ranking', array(__CLASS__, 'ajax_ranking'));
 	}
 
 	public static function register_rest_routes() {
@@ -33,6 +35,26 @@ class AVP_Gallery {
 			'args' => array(
 				'folder' => array(
 					'type' => 'string',
+					'required' => false,
+				),
+			),
+		));
+
+		register_rest_route('avp/v1', '/ranking', array(
+			'methods' => 'GET',
+			'permission_callback' => '__return_true',
+			'callback' => array(__CLASS__, 'rest_ranking'),
+			'args' => array(
+				'folder' => array(
+					'type' => 'string',
+					'required' => false,
+				),
+				'limit' => array(
+					'type' => 'integer',
+					'required' => false,
+				),
+				'minVotes' => array(
+					'type' => 'integer',
 					'required' => false,
 				),
 			),
@@ -88,6 +110,13 @@ class AVP_Gallery {
 	}
 
 	public static function register_assets() {
+		wp_register_style(
+			'avp-gallery-fonts',
+			'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap',
+			array(),
+			null
+		);
+
 		wp_register_style(
 			'avp-gallery',
 			AVP_GALLERY_PLUGIN_URL . 'assets/css/gallery.css',
@@ -277,6 +306,7 @@ class AVP_Gallery {
 		// Gate: la galería es solo para usuarios logeados.
 		// En producción algunos caches pueden mentir sobre el estado, pero el endpoint del plugin confirmará.
 		if (!is_user_logged_in()) {
+			wp_enqueue_style('avp-gallery-fonts');
 			wp_enqueue_style('avp-gallery');
 			wp_enqueue_script('avp-gallery');
 
@@ -319,6 +349,7 @@ class AVP_Gallery {
 			return '<div class="avp-gallery__error">No se encontró la carpeta de imágenes. Crea <code>wp-content/uploads/AdiosValparaiso</code> (recomendado) o una carpeta <code>AdiosValparaiso</code> dentro del plugin.</div>';
 		}
 
+		wp_enqueue_style('avp-gallery-fonts');
 		wp_enqueue_style('avp-gallery');
 		wp_enqueue_script('avp-gallery');
 
@@ -352,22 +383,49 @@ class AVP_Gallery {
 
 		wp_add_inline_script('avp-gallery', 'window.AVP_GALLERY = ' . wp_json_encode($localize) . ';', 'before');
 
-		$html  = '<div class="avp-gallery" data-images="' . esc_attr(wp_json_encode($payload_images)) . '" data-source="' . esc_attr($source) . '" data-folder="' . esc_attr($folder) . '">';
-		$html .= '  <button class="avp-gallery__nav avp-gallery__nav--prev" type="button" aria-label="Previous">‹</button>';
-		$html .= '  <button class="avp-gallery__nav avp-gallery__nav--next" type="button" aria-label="Next">›</button>';
-		$html .= '  <div class="avp-gallery__stage" role="group" aria-label="Gallery">';
-		$html .= '    <img class="avp-gallery__img" alt="" />';
+		$html  = '<div class="avp-gallery-shell" data-view="gallery">';
+		$html .= '  <nav class="avp-gallery-shell__menu" aria-label="Menú galería">';
+		$html .= '    <button class="avp-gallery-shell__tab is-active" type="button" data-view="gallery">GALERÍA</button>';
+		$html .= '    <button class="avp-gallery-shell__tab" type="button" data-view="ranking">RANKING</button>';
+		$html .= '  </nav>';
+
+		$html .= '  <div class="avp-gallery-shell__panel is-active" data-panel="gallery">';
+		$html .= '    <div class="avp-gallery" data-images="' . esc_attr(wp_json_encode($payload_images)) . '" data-source="' . esc_attr($source) . '" data-folder="' . esc_attr($folder) . '">';
+		$html .= '      <button class="avp-gallery__nav avp-gallery__nav--prev" type="button" aria-label="Previous">‹</button>';
+		$html .= '      <button class="avp-gallery__nav avp-gallery__nav--next" type="button" aria-label="Next">›</button>';
+		$html .= '      <div class="avp-gallery__stage" role="group" aria-label="Gallery">';
+		$html .= '        <img class="avp-gallery__img" alt="" />';
+		$html .= '      </div>';
+		$html .= '      <div class="avp-gallery__hud">';
+		$html .= '        <div class="avp-gallery__meta">';
+		$html .= '          <div class="avp-gallery__counter"></div>';
+		$html .= '          <div class="avp-gallery__filename"></div>';
+		$html .= '        </div>';
+		$html .= '        <div class="avp-gallery__rating">';
+		$html .= '          <div class="avp-gallery__avg" aria-live="polite"></div>';
+		$html .= '          <div class="avp-gallery__stars" role="radiogroup" aria-label="Tu evaluación (0 a 5)"></div>';
+		$html .= '          <div class="avp-gallery__login-hint">Inicia sesión para evaluar.</div>';
+		$html .= '        </div>';
+		$html .= '      </div>';
+		$html .= '    </div>';
 		$html .= '  </div>';
-		$html .= '  <div class="avp-gallery__hud">';
-		$html .= '    <div class="avp-gallery__meta">';
-		$html .= '      <div class="avp-gallery__counter"></div>';
-		$html .= '      <div class="avp-gallery__filename"></div>';
-		$html .= '    </div>';
-		$html .= '    <div class="avp-gallery__rating">';
-		$html .= '      <div class="avp-gallery__avg" aria-live="polite"></div>';
-		$html .= '      <div class="avp-gallery__stars" role="radiogroup" aria-label="Tu evaluación (0 a 5)"></div>';
-		$html .= '      <div class="avp-gallery__login-hint">Inicia sesión para evaluar.</div>';
-		$html .= '    </div>';
+
+		$html .= '  <div class="avp-gallery-shell__panel" data-panel="ranking">';
+		$html .= '    <section class="avp-ranking" data-folder="' . esc_attr($folder) . '">';
+		$html .= '      <div class="avp-ranking__wrap">';
+		$html .= '        <header class="avp-ranking__header">';
+		$html .= '          <h1 class="avp-ranking__title">Fotos Más Votadas</h1>';
+		$html .= '          <p class="avp-ranking__subtitle">Libro Adiós Valparaíso</p>';
+		$html .= '          <button class="avp-ranking__refresh" type="button">';
+		$html .= '            <svg class="avp-ranking__refresh-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
+		$html .= '            Actualizar Galería';
+		$html .= '          </button>';
+		$html .= '        </header>';
+		$html .= '        <div class="avp-ranking__error" hidden></div>';
+		$html .= '        <div class="avp-ranking__list" aria-live="polite"></div>';
+		$html .= '        <footer class="avp-ranking__footer">&copy; <span class="avp-ranking__year"></span> Ediciones Valparaíso Eterno</footer>';
+		$html .= '      </div>';
+		$html .= '    </section>';
 		$html .= '  </div>';
 		$html .= '</div>';
 
@@ -405,6 +463,30 @@ class AVP_Gallery {
 		}
 
 		wp_send_json_success(array('images' => $payload_images));
+	}
+
+	public static function ajax_ranking() {
+		check_ajax_referer('avp_gallery_nonce', 'nonce');
+
+		$folder = isset($_POST['folder']) ? sanitize_text_field(wp_unslash($_POST['folder'])) : 'AdiosValparaiso';
+		$limit = isset($_POST['limit']) ? intval($_POST['limit']) : 50;
+		$min_votes = isset($_POST['minVotes']) ? intval($_POST['minVotes']) : 1;
+
+		if (!class_exists('WP_REST_Request')) {
+			wp_send_json_error(array('message' => 'REST not available'), 500);
+		}
+
+		$req = new WP_REST_Request('GET', '/avp/v1/ranking');
+		$req->set_param('folder', $folder);
+		$req->set_param('limit', $limit);
+		$req->set_param('minVotes', $min_votes);
+		$res = self::rest_ranking($req);
+
+		if ($res instanceof WP_REST_Response) {
+			wp_send_json($res->get_data(), $res->get_status());
+		}
+
+		wp_send_json($res, 200);
 	}
 
 	public static function ajax_get_rating() {
@@ -481,6 +563,89 @@ class AVP_Gallery {
 		}
 
 		return new WP_REST_Response(array('success' => true, 'data' => array('images' => $payload_images)), 200);
+	}
+
+	public static function rest_ranking($request) {
+		$folder = (string) $request->get_param('folder');
+		$folder = $folder !== '' ? sanitize_text_field($folder) : 'AdiosValparaiso';
+
+		$limit = intval($request->get_param('limit'));
+		if ($limit <= 0) {
+			$limit = 50;
+		}
+		if ($limit > 200) {
+			$limit = 200;
+		}
+
+		$min_votes = intval($request->get_param('minVotes'));
+		if ($min_votes < 0) {
+			$min_votes = 0;
+		}
+
+		$dir_info = array(
+			'origin' => 'r2',
+			'folder' => $folder,
+		);
+
+		$images = self::list_images($dir_info);
+		$settings = AVP_Gallery_Settings::get();
+		if (empty($settings['enabled'])) {
+			return new WP_REST_Response(array('success' => false, 'data' => array('message' => 'R2 deshabilitado')), 400);
+		}
+		if (empty($settings['bucket']) || empty($settings['access_key_id']) || empty($settings['secret_access_key']) || (empty($settings['account_id']) && empty($settings['endpoint']))) {
+			return new WP_REST_Response(array('success' => false, 'data' => array('message' => 'R2 no configurado')), 400);
+		}
+		if (empty($images)) {
+			return new WP_REST_Response(array('success' => false, 'data' => array('message' => 'Sin imágenes o no se pudo listar')), 404);
+		}
+
+		$keys = array();
+		foreach ($images as $img) {
+			if (!empty($img['key'])) {
+				$keys[] = $img['key'];
+			}
+		}
+
+		$stats_map = AVP_Gallery_DB::get_stats_map($keys);
+
+		$items = array();
+		foreach ($images as $img) {
+			$key = isset($img['key']) ? (string) $img['key'] : '';
+			if ($key === '') {
+				continue;
+			}
+			$stats = isset($stats_map[$key]) ? $stats_map[$key] : array('votes' => 0, 'avg' => 0.0);
+			if ($stats['votes'] < $min_votes) {
+				continue;
+			}
+			$items[] = array(
+				'key' => $key,
+				'url' => isset($img['url']) ? esc_url_raw($img['url']) : '',
+				'name' => isset($img['name']) ? (string) $img['name'] : '',
+				'stats' => $stats,
+			);
+		}
+
+		usort($items, function ($a, $b) {
+			$a_votes = isset($a['stats']['votes']) ? intval($a['stats']['votes']) : 0;
+			$b_votes = isset($b['stats']['votes']) ? intval($b['stats']['votes']) : 0;
+			$a_avg = isset($a['stats']['avg']) ? floatval($a['stats']['avg']) : 0.0;
+			$b_avg = isset($b['stats']['avg']) ? floatval($b['stats']['avg']) : 0.0;
+
+			if ($a_avg === $b_avg) {
+				if ($a_votes === $b_votes) {
+					return strcasecmp((string) $a['name'], (string) $b['name']);
+				}
+				return $b_votes <=> $a_votes;
+			}
+			return ($b_avg <=> $a_avg);
+		});
+
+		if (count($items) > $limit) {
+			$items = array_slice($items, 0, $limit);
+		}
+
+		return new WP_REST_Response(array('success' => true, 'data' => array('items' => $items)), 200);
 	}
 
 	public static function rest_me($request) {

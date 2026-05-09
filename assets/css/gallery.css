@@ -1,6 +1,6 @@
 .avp-gallery {
 	position: relative;
-	width: 100vw;
+	width: 100%;
 	height: 60vh; /* fallback */
 	height: 60svh; /* stable viewport height (mobile address bar) */
 	height: 60dvh; /* dynamic viewport height (mobile address bar) */
@@ -208,4 +208,255 @@
 
 .avp-gallery__login-btn:hover {
 	background: rgba(255, 255, 255, 0.14);
+}
+
+/* Shell menu (Galería / Ranking) */
+.avp-gallery-shell {
+	font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+	background: #f5f5f4; /* stone-100/50-ish */
+	padding: 14px 14px 18px;
+}
+
+.avp-gallery-shell__menu {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	justify-content: center;
+	margin: 0 auto 12px;
+	max-width: 980px;
+}
+
+.avp-gallery-shell__tab {
+	border: 1px solid rgba(28, 25, 23, 0.14);
+	background: rgba(255, 255, 255, 0.85);
+	color: #1c1917;
+	border-radius: 999px;
+	padding: 10px 16px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	font-size: 12px;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: all 160ms ease;
+}
+
+.avp-gallery-shell__tab:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 22px rgba(28, 25, 23, 0.08);
+}
+
+.avp-gallery-shell__tab.is-active {
+	background: #0c0a09;
+	border-color: #0c0a09;
+	color: #fff;
+}
+
+.avp-gallery-shell__panel {
+	display: none;
+}
+
+.avp-gallery-shell__panel.is-active {
+	display: block;
+}
+
+/* Ranking view */
+.avp-ranking {
+	color: #1c1917; /* stone-900 */
+	padding: 4px 0 18px;
+}
+
+.avp-ranking__wrap {
+	max-width: 720px;
+	margin: 0 auto;
+}
+
+.avp-ranking__header {
+	text-align: center;
+	margin: 6px 0 18px;
+	padding-bottom: 18px;
+	border-bottom: 1px solid rgba(28, 25, 23, 0.12);
+}
+
+.avp-ranking__title {
+	font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+	font-weight: 700;
+	font-size: 38px;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	text-transform: uppercase;
+	margin: 0 0 6px;
+}
+
+.avp-ranking__subtitle {
+	margin: 0;
+	font-size: 18px;
+	color: rgba(28, 25, 23, 0.55);
+	font-style: italic;
+}
+
+.avp-ranking__refresh {
+	margin-top: 16px;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 18px;
+	border-radius: 999px;
+	border: 0;
+	background: #0c0a09;
+	color: #fff;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: 0 10px 24px rgba(12, 10, 9, 0.15);
+	transition: all 160ms ease;
+}
+
+.avp-ranking__refresh:hover {
+	background: #1c1917;
+}
+
+.avp-ranking__refresh:active {
+	transform: scale(0.98);
+}
+
+.avp-ranking__refresh:disabled {
+	opacity: 0.65;
+	cursor: not-allowed;
+}
+
+.avp-ranking__refresh-icon.is-spinning {
+	animation: avp-spin 2s linear infinite;
+}
+
+@keyframes avp-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+.avp-ranking__error {
+	margin: 0 0 14px;
+	padding: 12px 14px;
+	border-radius: 14px;
+	border: 1px solid rgba(239, 68, 68, 0.35);
+	background: rgba(254, 242, 242, 0.9);
+	color: rgb(185, 28, 28);
+	text-align: center;
+	font-size: 13px;
+}
+
+.avp-ranking__list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.avp-ranking__empty {
+	text-align: center;
+	padding: 18px 14px;
+	background: rgba(255, 255, 255, 0.85);
+	border: 1px solid rgba(28, 25, 23, 0.12);
+	border-radius: 14px;
+	color: rgba(28, 25, 23, 0.6);
+}
+
+.avp-ranking__row {
+	background: rgba(255, 255, 255, 0.95);
+	border: 1px solid rgba(28, 25, 23, 0.08);
+	border-radius: 16px;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	box-shadow: 0 6px 18px rgba(28, 25, 23, 0.06);
+	transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+.avp-ranking__row:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 10px 26px rgba(28, 25, 23, 0.10);
+}
+
+.avp-ranking__pos {
+	background: rgba(250, 250, 249, 1);
+	color: rgba(120, 113, 108, 0.55); /* stone-500-ish */
+	padding: 10px 14px;
+	font-size: 22px;
+	font-weight: 700;
+	min-width: 66px;
+	text-align: center;
+}
+
+.avp-ranking__thumb {
+	width: 96px;
+	height: 96px;
+	background: rgba(231, 229, 228, 0.85);
+	flex: 0 0 auto;
+	overflow: hidden;
+}
+
+.avp-ranking__thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.avp-ranking__body {
+	flex: 1 1 auto;
+	padding: 14px 16px;
+	min-width: 0;
+}
+
+.avp-ranking__name {
+	font-weight: 600;
+	font-size: 16px;
+	color: #0c0a09;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.avp-ranking__meta {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 8px;
+	color: rgba(120, 113, 108, 0.9);
+}
+
+.avp-ranking__stars {
+	display: inline-flex;
+	gap: 3px;
+	align-items: center;
+}
+
+.avp-ranking__star--filled {
+	color: #facc15;
+	fill: #facc15;
+}
+
+.avp-ranking__star--empty {
+	color: rgba(214, 211, 209, 1);
+}
+
+.avp-ranking__score {
+	font-size: 13px;
+	font-weight: 600;
+	color: rgba(120, 113, 108, 0.9);
+}
+
+.avp-ranking__footer {
+	margin-top: 28px;
+	text-align: center;
+	font-size: 12px;
+	letter-spacing: 0.06em;
+	color: rgba(120, 113, 108, 0.75);
+}
+
+@media (min-width: 768px) {
+	.avp-ranking__thumb {
+		width: 128px;
+		height: 128px;
+	}
+	.avp-ranking__name {
+		font-size: 18px;
+	}
 }

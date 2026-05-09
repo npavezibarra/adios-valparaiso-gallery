@@ -167,4 +167,23 @@ if ($op === 'list_images') {
 	avp_api_send(200, $res);
 }
 
+if ($op === 'ranking') {
+	$folder = isset($_REQUEST['folder']) ? sanitize_text_field(wp_unslash($_REQUEST['folder'])) : 'AdiosValparaiso';
+	$limit = isset($_REQUEST['limit']) ? intval($_REQUEST['limit']) : 50;
+	$min_votes = isset($_REQUEST['minVotes']) ? intval($_REQUEST['minVotes']) : 0;
+
+	if (!class_exists('WP_REST_Request')) {
+		avp_api_send(500, array('success' => false, 'data' => array('message' => 'REST not available')));
+	}
+	$req = new WP_REST_Request('GET', '/avp/v1/ranking');
+	$req->set_param('folder', $folder);
+	$req->set_param('limit', $limit);
+	$req->set_param('minVotes', $min_votes);
+	$res = AVP_Gallery::rest_ranking($req);
+	if ($res instanceof WP_REST_Response) {
+		avp_api_send($res->get_status(), $res->get_data());
+	}
+	avp_api_send(200, $res);
+}
+
 avp_api_send(400, array('success' => false, 'data' => array('message' => 'Unknown op')));

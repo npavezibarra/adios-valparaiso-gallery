@@ -10,6 +10,51 @@ class AVP_Gallery_DB {
 		return $wpdb->prefix . 'avp_image_ratings';
 	}
 
+	/**
+	 * Returns aggregated stats (votes + avg) for many image keys.
+	 *
+	 * @param string[] $image_keys
+	 * @return array<string, array{votes:int, avg:float}>
+	 */
+	public static function get_stats_map($image_keys) {
+		global $wpdb;
+		$table = self::table_name();
+
+		if (!is_array($image_keys) || empty($image_keys)) {
+			return array();
+		}
+
+		$image_keys = array_values(array_unique(array_filter(array_map(function ($k) {
+			return sanitize_text_field((string) $k);
+		}, $image_keys))));
+
+		if (empty($image_keys)) {
+			return array();
+		}
+
+		$placeholders = implode(',', array_fill(0, count($image_keys), '%s'));
+		$sql = "SELECT image_key, COUNT(*) AS votes, AVG(rating) AS avg_rating
+			FROM {$table}
+			WHERE image_key IN ({$placeholders})
+			GROUP BY image_key";
+
+		$rows = $wpdb->get_results($wpdb->prepare($sql, $image_keys), ARRAY_A);
+
+		$map = array();
+		foreach ((array) $rows as $row) {
+			$key = isset($row['image_key']) ? (string) $row['image_key'] : '';
+			if ($key === '') {
+				continue;
+			}
+			$map[$key] = array(
+				'votes' => isset($row['votes']) ? intval($row['votes']) : 0,
+				'avg' => isset($row['avg_rating']) && $row['avg_rating'] !== null ? floatval($row['avg_rating']) : 0.0,
+			);
+		}
+
+		return $map;
+	}
+
 	public static function activate() {
 		global $wpdb;
 
@@ -104,4 +149,3 @@ class AVP_Gallery_DB {
 		return self::get_stats($image_key);
 	}
 }
-

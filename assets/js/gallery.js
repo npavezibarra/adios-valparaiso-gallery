@@ -95,7 +95,8 @@
 			body.set("op", action === "avp_set_rating" ? "set_rating" :
 				action === "avp_get_rating" ? "get_rating" :
 				action === "avp_list_images" ? "list_images" :
-				action === "avp_me" ? "me" : "");
+				action === "avp_me" ? "me" :
+				action === "avp_ranking" ? "ranking" : "");
 			body.set("nonce", cfg.nonce || "");
 			if (getForcedLogin()) body.set("avp_logged_in", "1");
 			Object.keys(payload || {}).forEach(function (k) { body.set(k, payload[k]); });
@@ -171,6 +172,18 @@
 					headers: { "X-WP-Nonce": cfg.restNonce || "" },
 				}).then(function (r) { return r.json(); });
 			}
+			if (action === "avp_ranking") {
+				var limit = payload.limit || 50;
+				var minVotes = payload.minVotes || 1;
+				var urlRank = cfg.restUrl.replace(/\/$/, "") + "/ranking?folder=" + encodeURIComponent(payload.folder || "") +
+					"&limit=" + encodeURIComponent(String(limit)) +
+					"&minVotes=" + encodeURIComponent(String(minVotes));
+				urlRank = withForcedParam(urlRank);
+				return fetch(urlRank, {
+					credentials: "same-origin",
+					headers: { "X-WP-Nonce": cfg.restNonce || "" },
+				}).then(function (r) { return r.json(); });
+			}
 			if (action === "avp_get_rating") {
 				var url2 = cfg.restUrl.replace(/\/$/, "") + "/rating?imageKey=" + encodeURIComponent(payload.imageKey || "");
 				url2 = withForcedParam(url2);
@@ -223,6 +236,46 @@
 			}
 		}
 		return legacyAjax();
+	}
+
+	function setShellView(shell, view) {
+		if (!shell) return;
+		shell.dataset.view = view;
+		var tabs = shell.querySelectorAll(".avp-gallery-shell__tab");
+		tabs.forEach(function (t) {
+			t.classList.toggle("is-active", (t.dataset.view || "") === view);
+		});
+		var panels = shell.querySelectorAll(".avp-gallery-shell__panel");
+		panels.forEach(function (p) {
+			p.classList.toggle("is-active", (p.dataset.panel || "") === view);
+		});
+
+		if (view === "ranking") {
+			var ranking = shell.querySelector(".avp-ranking");
+			if (ranking && typeof ranking.__avpLoad === "function") {
+				ranking.__avpLoad();
+			}
+		}
+	}
+
+	function initShell(shell) {
+		var tabs = shell.querySelectorAll(".avp-gallery-shell__tab");
+		tabs.forEach(function (tab) {
+			tab.addEventListener("click", function () {
+				setShellView(shell, tab.dataset.view || "gallery");
+				try {
+					window.location.hash = (tab.dataset.view || "gallery") === "ranking" ? "#ranking" : "#gallery";
+				} catch (e) { }
+			});
+		});
+
+		var initial = "gallery";
+		try {
+			var hash = (window.location.hash || "").toLowerCase();
+			if (hash === "#ranking") initial = "ranking";
+		} catch (e) { }
+
+		setShellView(shell, initial);
 	}
 
 	function formatAvg(stats) {
@@ -533,7 +586,124 @@
 		});
 	}
 
+	function getStarsHtml(rating, gradientPrefix) {
+		var html = "";
+		var r = typeof rating === "number" ? rating : parseFloat(String(rating || "0")) || 0;
+
+		for (var i = 1; i <= 5; i++) {
+			if (i <= Math.floor(r)) {
+				html += '<svg class="avp-ranking__star avp-ranking__star--filled" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+			} else if (i === Math.ceil(r) && r % 1 !== 0) {
+				var id = String(gradientPrefix || "grad") + "-" + String(i);
+				html += '<svg class="avp-ranking__star avp-ranking__star--filled" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+					'<defs><linearGradient id="' + id + '"><stop offset="50%" stop-color="#facc15" /><stop offset="50%" stop-color="transparent" stop-opacity="1" /></linearGradient></defs>' +
+					'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="url(#' + id + ')"></polygon></svg>';
+			} else {
+				html += '<svg class="avp-ranking__star avp-ranking__star--empty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+			}
+		}
+
+		return html;
+	}
+
+	function initRanking(root) {
+		var folder = root.getAttribute("data-folder") || "AdiosValparaiso";
+		var list = root.querySelector(".avp-ranking__list");
+		var errorBox = root.querySelector(".avp-ranking__error");
+		var refreshBtn = root.querySelector(".avp-ranking__refresh");
+		var refreshIcon = root.querySelector(".avp-ranking__refresh-icon");
+		var year = root.querySelector(".avp-ranking__year");
+		if (year) year.textContent = String(new Date().getFullYear());
+
+		function setError(msg) {
+			if (!errorBox) return;
+			if (!msg) {
+				errorBox.hidden = true;
+				errorBox.textContent = "";
+				return;
+			}
+			errorBox.hidden = false;
+			errorBox.textContent = msg;
+		}
+
+		function render(items) {
+			if (!list) return;
+			list.innerHTML = "";
+
+			if (!items || !items.length) {
+				var empty = document.createElement("div");
+				empty.className = "avp-ranking__empty";
+				empty.textContent = "Aún no hay votos para mostrar.";
+				list.appendChild(empty);
+				return;
+			}
+
+			items.forEach(function (item, index) {
+				var row = document.createElement("div");
+				row.className = "avp-ranking__row";
+				var rating = item && item.stats ? item.stats.avg : 0;
+				var votes = item && item.stats ? item.stats.votes : 0;
+				var safeName = document.createElement("div");
+				safeName.textContent = (item && item.name) ? String(item.name) : "";
+
+				row.innerHTML =
+					'<div class="avp-ranking__pos">#' + (index + 1) + '</div>' +
+					'<div class="avp-ranking__thumb"><img alt="" loading="lazy" src="' + (item.url || "") + '"></div>' +
+					'<div class="avp-ranking__body">' +
+					'  <div class="avp-ranking__name">' + safeName.innerHTML + '</div>' +
+					'  <div class="avp-ranking__meta">' +
+					'    <div class="avp-ranking__stars">' + getStarsHtml(rating, "avp-grad-" + String(index)) + '</div>' +
+					'    <div class="avp-ranking__score">(' + (Math.round(rating * 10) / 10).toFixed(1) + ' · ' + votes + ')</div>' +
+					'  </div>' +
+					'</div>';
+
+				list.appendChild(row);
+			});
+		}
+
+		function load() {
+			if (root.dataset.loading === "1") return;
+			root.dataset.loading = "1";
+			setError("");
+			if (refreshIcon) refreshIcon.classList.add("is-spinning");
+			if (refreshBtn) refreshBtn.disabled = true;
+
+			ajax("avp_ranking", { folder: folder, limit: 50, minVotes: 1 })
+				.then(function (res) {
+					if (!res || !res.success) {
+						var msg = (res && res.data && res.data.message) ? res.data.message : "No se pudo cargar el ranking";
+						throw new Error(msg);
+					}
+					render((res.data && res.data.items) ? res.data.items : []);
+				})
+				.catch(function (e) {
+					setError((e && e.message) ? e.message : "Hubo un problema cargando el ranking.");
+					render([]);
+				})
+				.finally(function () {
+					root.dataset.loading = "0";
+					if (refreshIcon) refreshIcon.classList.remove("is-spinning");
+					if (refreshBtn) refreshBtn.disabled = false;
+				});
+		}
+
+		root.__avpLoad = function () {
+			if (root.dataset.loaded === "1") return;
+			root.dataset.loaded = "1";
+			load();
+		};
+
+		if (refreshBtn) {
+			refreshBtn.addEventListener("click", function () {
+				root.dataset.loaded = "1";
+				load();
+			});
+		}
+	}
+
 	document.addEventListener("DOMContentLoaded", function () {
+		document.querySelectorAll(".avp-gallery-shell").forEach(initShell);
 		document.querySelectorAll(".avp-gallery").forEach(initGallery);
+		document.querySelectorAll(".avp-ranking").forEach(initRanking);
 	});
 })();
