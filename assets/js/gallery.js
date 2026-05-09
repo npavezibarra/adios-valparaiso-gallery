@@ -271,30 +271,105 @@
 			var btn = root.querySelector(".avp-gallery__login-btn");
 			if (btn) {
 				btn.addEventListener("click", function () {
-					// Intento best-effort: abrir el modal flotante del plugin de cursos si existe.
-					// Si no existe, redirige al login estándar con redirect_to.
-					try {
-						// Patrones comunes:
-						if (window.VillegasCoursesLogin && typeof window.VillegasCoursesLogin.open === "function") {
-							window.VillegasCoursesLogin.open();
-							return;
-						}
-						if (window.villegasCourses && typeof window.villegasCourses.openLogin === "function") {
-							window.villegasCourses.openLogin();
-							return;
-						}
-						if (window.VCPCourses && typeof window.VCPCourses.openLogin === "function") {
-							window.VCPCourses.openLogin();
-							return;
-						}
-						// Trigger por evento (por si el plugin escucha).
-						window.dispatchEvent(new CustomEvent("villegas-courses:open-login"));
-						window.dispatchEvent(new CustomEvent("vcp:open-login"));
-					} catch (e) { }
+					// Debe abrir el modal del plugin de cursos (vcp-auth-modal).
+					// Hacemos detección + triggers múltiples para ser resilientes.
+					function tryOpenModalByDom() {
+						var modal =
+							document.querySelector(".vcp-auth-modal") ||
+							document.querySelector("#vcp-auth-modal") ||
+							document.querySelector("[data-vcp-auth-modal]") ||
+							document.querySelector(".vcp-auth") ||
+							null;
+						if (!modal) return false;
 
-					var cfg = (window.AVP_GALLERY || {});
-					var loginUrl = cfg.loginUrl || (window.location.origin.replace(/\/$/, "") + "/wp-login.php?redirect_to=" + encodeURIComponent(window.location.href));
-					window.location.href = loginUrl;
+						try {
+							modal.classList.add("is-open");
+							modal.classList.add("open");
+							modal.classList.remove("is-hidden");
+							modal.removeAttribute("hidden");
+							modal.setAttribute("aria-hidden", "false");
+							// Muchos modales usan display:none.
+							if (modal.style) {
+								modal.style.display = "block";
+								modal.style.visibility = "visible";
+								modal.style.opacity = "1";
+							}
+							document.body.classList.add("vcp-auth-modal-open");
+							document.documentElement.classList.add("vcp-auth-modal-open");
+
+							var focusTarget =
+								modal.querySelector("input[type=email]") ||
+								modal.querySelector("input[type=text]") ||
+								modal.querySelector("input") ||
+								null;
+							if (focusTarget && focusTarget.focus) focusTarget.focus();
+						} catch (e) { }
+						return true;
+					}
+
+					function tryClickTriggers() {
+						var triggers = [
+							"[data-vcp-auth-open]",
+							"[data-open='vcp-auth-modal']",
+							"[data-modal='vcp-auth-modal']",
+							"a[href*='vcp-auth-modal']",
+							".vcp-auth-open",
+							".open-vcp-auth",
+							".vcp-open-auth",
+						];
+						for (var i = 0; i < triggers.length; i++) {
+							var el = document.querySelector(triggers[i]);
+							if (el && el.click) {
+								try { el.click(); } catch (e) { }
+								return true;
+							}
+						}
+						return false;
+					}
+
+					function tryGlobalApis() {
+						try {
+							if (window.VCPAuthModal && typeof window.VCPAuthModal.open === "function") {
+								window.VCPAuthModal.open();
+								return true;
+							}
+							if (window.VillegasCoursesLogin && typeof window.VillegasCoursesLogin.open === "function") {
+								window.VillegasCoursesLogin.open();
+								return true;
+							}
+							if (window.villegasCourses && typeof window.villegasCourses.openLogin === "function") {
+								window.villegasCourses.openLogin();
+								return true;
+							}
+							if (window.VCPCourses && typeof window.VCPCourses.openLogin === "function") {
+								window.VCPCourses.openLogin();
+								return true;
+							}
+						} catch (e) { }
+						return false;
+					}
+
+					function tryEvents() {
+						try {
+							window.dispatchEvent(new CustomEvent("vcp-auth-modal:open"));
+							window.dispatchEvent(new CustomEvent("vcp:auth:open"));
+							window.dispatchEvent(new CustomEvent("villegas-courses:open-login"));
+							window.dispatchEvent(new CustomEvent("vcp:open-login"));
+						} catch (e) { }
+						return true;
+					}
+
+					if (tryGlobalApis()) return;
+					if (tryOpenModalByDom()) return;
+					if (tryClickTriggers()) return;
+					tryEvents();
+
+					// Sin fallback a wp-login.php: mostramos un mensaje claro.
+					setTimeout(function () {
+						if (!tryOpenModalByDom()) {
+							alert("No se pudo abrir el formulario de ingreso (vcp-auth-modal). Revisa que el plugin de cursos esté activo en esta página.");
+						}
+					}, 250);
 				});
 			}
 			return;
