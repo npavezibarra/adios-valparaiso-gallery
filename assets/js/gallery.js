@@ -901,6 +901,21 @@
 				});
 		}
 
+		function ensureAuthState() {
+			if (getForcedLogin()) {
+				isLoggedIn = true;
+				return Promise.resolve(true);
+			}
+			return ajax("avp_me", {})
+				.then(function (res) {
+					if (res && res.success && res.data && typeof res.data.isLoggedIn === "boolean") {
+						isLoggedIn = res.data.isLoggedIn;
+					}
+					return isLoggedIn;
+				})
+				.catch(function () { return isLoggedIn; });
+		}
+
 		function ensureMyRatingsLoaded() {
 			if (!isLoggedIn) {
 				myRatings = {};
@@ -988,7 +1003,16 @@
 								renderMore();
 								setStatus("");
 							})
-							.catch(function () {
+							.catch(function (e) {
+								var msg = (e && e.message) ? String(e.message) : "";
+								if (msg.toLowerCase().indexOf("unauthorized") !== -1) {
+									isLoggedIn = false;
+									myRatings = {};
+									applyFilter();
+									renderMore();
+									setStatus("Inicia sesión para evaluar");
+									return;
+								}
 								setStatus("No se pudo guardar");
 								setTimeout(function () { setStatus(""); }, 1200);
 							});
@@ -1030,6 +1054,7 @@
 
 		function initNow() {
 			return ensureImagesLoaded()
+				.then(function () { return ensureAuthState(); })
 				.then(function () { return ensureMyRatingsLoaded(); })
 				.then(function () {
 					applyFilter();
