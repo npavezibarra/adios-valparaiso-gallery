@@ -966,6 +966,28 @@
 			if (grid) grid.innerHTML = "";
 		}
 
+		function removeFromVisible(itemKey) {
+			if (!itemKey) return;
+			visibleImages = (visibleImages || []).filter(function (im) { return im && im.key !== itemKey; });
+			if (grid) {
+				var card = grid.querySelector("[data-image-key='" + itemKey + "']");
+				if (card && card.parentNode) card.parentNode.removeChild(card);
+			}
+			if (grid) renderedCount = grid.children.length;
+		}
+
+		function updateCardStars(itemKey, newRating) {
+			if (!grid || !itemKey) return;
+			var card = grid.querySelector("[data-image-key='" + itemKey + "']");
+			if (!card) return;
+			var ratingEl = card.querySelector(".avp-thumbs__rating");
+			if (!ratingEl) return;
+			var buttons = ratingEl.querySelectorAll(".avp-thumbs__star");
+			buttons.forEach(function (b, idx) {
+				b.classList.toggle("is-on", (idx + 1) <= newRating);
+			});
+		}
+
 		function closeModal() {
 			if (!modal) return;
 			modal.classList.remove("is-active");
@@ -985,21 +1007,13 @@
 						.then(function (res) {
 							if (!res || !res.success) throw new Error("failed");
 							myRatings[item.key] = res.data.userRating;
-
-							// Update any existing card stars in-place.
-							var card = grid ? grid.querySelector("[data-image-key='" + item.key + "']") : null;
-							if (card) {
-								var ratingEl = card.querySelector(".avp-thumbs__rating");
-								if (ratingEl) {
-									var newRating = parseInt(res.data.userRating, 10) || 0;
-									ratingEl.querySelectorAll(".avp-thumbs__star").forEach(function (b, idx) {
-										b.classList.toggle("is-on", (idx + 1) <= newRating);
-									});
-								}
+							var newRating = parseInt(res.data.userRating, 10) || 0;
+							updateCardStars(item.key, newRating);
+							if (filterMode === "unvoted") {
+								removeFromVisible(item.key);
+								renderMore();
+								resetAutoLoadAfterRerender();
 							}
-
-							applyFilter();
-							renderMore();
 							renderModalStars(item, parseInt(res.data.userRating, 10) || 0);
 							setStatus("");
 						})
@@ -1079,9 +1093,14 @@
 							.then(function (res) {
 								if (!res || !res.success) throw new Error("failed");
 								myRatings[item.key] = res.data.userRating;
-								applyFilter();
-								renderMore();
-								resetAutoLoadAfterRerender();
+								var newRating = parseInt(res.data.userRating, 10) || 0;
+								updateCardStars(item.key, newRating);
+								// If we're filtering "SIN VOTO", this item should disappear after voting.
+								if (filterMode === "unvoted") {
+									removeFromVisible(item.key);
+									renderMore();
+									resetAutoLoadAfterRerender();
+								}
 								setStatus("");
 							})
 							.catch(function (e) {
