@@ -21,10 +21,14 @@
 	function ajax(action, payload) {
 		var cfg = (window.AVP_GALLERY || {});
 		if (!cfg.directRatingUrl) {
-			var script = document.querySelector('script[src*="/adiosvalparaiso-gallery/assets/js/gallery.js"]');
-			if (script && script.getAttribute("src")) {
-				cfg.directRatingUrl = script.getAttribute("src")
-					.replace(/\/assets\/js\/gallery\.js(?:\?.*)?$/, "/avp-rating-endpoint.php");
+			var scripts = document.querySelectorAll('script[src*="/assets/js/gallery.js"]');
+			for (var i = 0; i < scripts.length; i++) {
+				var src = scripts[i].getAttribute("src") || "";
+				if (!src) continue;
+				// Busca el script del plugin bajo /wp-content/plugins/<plugin>/assets/js/gallery.js
+				if (src.indexOf("/wp-content/plugins/") === -1) continue;
+				cfg.directRatingUrl = src.replace(/\/assets\/js\/gallery\.js(?:\?.*)?$/, "/avp-rating-endpoint.php");
+				break;
 			}
 		}
 		if (!cfg.ajaxUrl) {
