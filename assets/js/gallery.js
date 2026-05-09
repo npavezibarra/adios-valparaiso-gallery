@@ -28,8 +28,12 @@
 				// Busca el script del plugin bajo /wp-content/plugins/<plugin>/assets/js/gallery.js
 				if (src.indexOf("/wp-content/plugins/") === -1) continue;
 				cfg.directRatingUrl = src.replace(/\/assets\/js\/gallery\.js(?:\?.*)?$/, "/avp-rating-endpoint.php");
+				cfg.directApiUrl = src.replace(/\/assets\/js\/gallery\.js(?:\?.*)?$/, "/avp-api.php");
 				break;
 			}
+		}
+		if (!cfg.directApiUrl && cfg.directRatingUrl) {
+			cfg.directApiUrl = cfg.directRatingUrl.replace(/\/avp-rating-endpoint\.php(?:\?.*)?$/, "/avp-api.php");
 		}
 		if (!cfg.ajaxUrl) {
 			// Fallback: si no se inyectó por PHP, asume admin-ajax estándar.
@@ -72,6 +76,48 @@
 						var snippet = flat.slice(0, 260);
 						var extra = title ? (" title=\"" + title + "\"") : "";
 						throw new Error("admin-ajax no-JSON (HTTP " + r.status + ")" + extra + ": " + snippet);
+					});
+				}
+				return r.json().then(function (j) {
+					if (!r.ok || (j && j.success === false)) {
+						var msg = (j && j.data && j.data.message) ? j.data.message : ("HTTP " + r.status);
+						throw new Error(msg);
+					}
+					return j;
+				});
+			});
+		}
+
+		// Prefer plugin-local endpoint in production to avoid wp-json/wp-admin being blocked by WAF/cache.
+		if (cfg.directApiUrl) {
+			var apiUrl = cfg.directApiUrl;
+			var body = new URLSearchParams();
+			body.set("op", action === "avp_set_rating" ? "set_rating" :
+				action === "avp_get_rating" ? "get_rating" :
+				action === "avp_list_images" ? "list_images" :
+				action === "avp_me" ? "me" : "");
+			body.set("nonce", cfg.nonce || "");
+			if (getForcedLogin()) body.set("avp_logged_in", "1");
+			Object.keys(payload || {}).forEach(function (k) { body.set(k, payload[k]); });
+
+			var method = (action === "avp_set_rating") ? "POST" : "GET";
+			var finalUrl = apiUrl;
+			var fetchOpts = {
+				method: method,
+				credentials: "same-origin",
+			};
+			if (method === "GET") {
+				finalUrl = apiUrl + (apiUrl.indexOf("?") === -1 ? "?" : "&") + body.toString();
+			} else {
+				fetchOpts.headers = { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" };
+				fetchOpts.body = body.toString();
+			}
+
+			return fetch(finalUrl, fetchOpts).then(function (r) {
+				var ct = (r.headers && r.headers.get && r.headers.get("content-type")) || "";
+				if (ct.indexOf("application/json") === -1) {
+					return r.text().then(function (t) {
+						throw new Error("api no-JSON (HTTP " + r.status + "): " + (t || "").replace(/\s+/g, " ").slice(0, 180));
 					});
 				}
 				return r.json().then(function (j) {
@@ -254,14 +300,8 @@
 				setStars(starsEl, null, false);
 				return Promise.resolve(true);
 			}
-			if (!cfg.restUrl) return Promise.resolve(isLoggedIn);
-			var url = cfg.restUrl.replace(/\/$/, "") + "/me";
-			url = withForcedParam(url);
-			return fetch(url, {
-				credentials: "same-origin",
-				headers: { "X-WP-Nonce": cfg.restNonce || "" },
-			})
-				.then(function (r) { return r.json(); })
+			// Usa el endpoint local del plugin si está disponible (evita wp-json nonce/cookies).
+			return ajax("avp_me", {})
 				.then(function (res) {
 					if (res && res.success && res.data && typeof res.data.isLoggedIn === "boolean") {
 						isLoggedIn = res.data.isLoggedIn;
@@ -272,9 +312,7 @@
 					}
 					return isLoggedIn;
 				})
-				.catch(function () {
-					return isLoggedIn;
-				});
+				.catch(function () { return isLoggedIn; });
 		}
 
 		function ensureImagesLoaded() {
