@@ -182,9 +182,13 @@
 			if (action === "avp_ranking") {
 				var limit = payload.limit || 50;
 				var minVotes = payload.minVotes || 1;
+				var view = payload.view || "best";
+				var likedThreshold = payload.likedThreshold || 4.0;
 				var urlRank = cfg.restUrl.replace(/\/$/, "") + "/ranking?folder=" + encodeURIComponent(payload.folder || "") +
 					"&limit=" + encodeURIComponent(String(limit)) +
-					"&minVotes=" + encodeURIComponent(String(minVotes));
+					"&minVotes=" + encodeURIComponent(String(minVotes)) +
+					"&view=" + encodeURIComponent(String(view)) +
+					"&likedThreshold=" + encodeURIComponent(String(likedThreshold));
 				urlRank = withForcedParam(urlRank);
 				return fetch(urlRank, {
 					credentials: "same-origin",
@@ -735,8 +739,10 @@
 		var errorBox = root.querySelector(".avp-ranking__error");
 		var refreshBtn = root.querySelector(".avp-ranking__refresh");
 		var refreshIcon = root.querySelector(".avp-ranking__refresh-icon");
+		var viewButtons = root.querySelectorAll(".avp-ranking__view");
 		var year = root.querySelector(".avp-ranking__year");
 		if (year) year.textContent = String(new Date().getFullYear());
+		var currentView = "best";
 
 		function setError(msg) {
 			if (!errorBox) return;
@@ -784,6 +790,34 @@
 			});
 		}
 
+		function renderPhotographers(payload) {
+			if (!list) return;
+			list.innerHTML = "";
+
+			var mostLiked = payload && payload.mostLiked ? payload.mostLiked : null;
+			if (!mostLiked) {
+				var empty = document.createElement("div");
+				empty.className = "avp-ranking__empty";
+				empty.textContent = "Aún no hay votos suficientes para calcular el fotógrafo más querido.";
+				list.appendChild(empty);
+				return;
+			}
+
+			var row = document.createElement("div");
+			row.className = "avp-ranking__row avp-ranking__row--photographer";
+			row.innerHTML =
+				'<div class="avp-ranking__pos">#1</div>' +
+				'<div class="avp-ranking__body">' +
+				'  <div class="avp-ranking__name">' + String(mostLiked.photographer || "") + '</div>' +
+				'  <div class="avp-ranking__meta">' +
+				'    <div class="avp-ranking__score">Fotos con promedio ≥ ' + String((payload && payload.likedThreshold) ? payload.likedThreshold : 4.0) + ': ' + String(mostLiked.likedPhotos || 0) + '</div>' +
+				'    <div class="avp-ranking__score">Votos totales: ' + String(mostLiked.totalVotes || 0) + '</div>' +
+				'    <div class="avp-ranking__score">Promedio ponderado: ' + (typeof mostLiked.avg === "number" ? mostLiked.avg.toFixed(2) : String(mostLiked.avg || "0")) + '</div>' +
+				'  </div>' +
+				'</div>';
+			list.appendChild(row);
+		}
+
 		function load() {
 			if (root.dataset.loading === "1") return;
 			root.dataset.loading = "1";
@@ -791,13 +825,18 @@
 			if (refreshIcon) refreshIcon.classList.add("is-spinning");
 			if (refreshBtn) refreshBtn.disabled = true;
 
-			ajax("avp_ranking", { folder: folder, limit: 50, minVotes: 1 })
+			var limit = (currentView === "all") ? 0 : 100;
+			ajax("avp_ranking", { folder: folder, limit: limit, minVotes: 1, view: currentView, likedThreshold: 4.0 })
 				.then(function (res) {
 					if (!res || !res.success) {
 						var msg = (res && res.data && res.data.message) ? res.data.message : "No se pudo cargar el ranking";
 						throw new Error(msg);
 					}
-					render((res.data && res.data.items) ? res.data.items : []);
+					if (res.data && res.data.view === "photographers") {
+						renderPhotographers(res.data);
+					} else {
+						render((res.data && res.data.items) ? res.data.items : []);
+					}
 				})
 				.catch(function (e) {
 					setError((e && e.message) ? e.message : "Hubo un problema cargando el ranking.");
@@ -820,6 +859,19 @@
 			refreshBtn.addEventListener("click", function () {
 				root.dataset.loaded = "1";
 				load();
+			});
+		}
+
+		if (viewButtons && viewButtons.length) {
+			viewButtons.forEach(function (b) {
+				b.addEventListener("click", function () {
+					currentView = b.dataset.rankingView || "best";
+					viewButtons.forEach(function (x) {
+						x.classList.toggle("is-active", (x.dataset.rankingView || "") === currentView);
+					});
+					root.dataset.loaded = "1";
+					load();
+				});
 			});
 		}
 	}

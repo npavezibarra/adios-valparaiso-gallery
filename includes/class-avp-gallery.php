@@ -49,12 +49,20 @@ class AVP_Gallery {
 					'type' => 'string',
 					'required' => false,
 				),
+				'view' => array(
+					'type' => 'string',
+					'required' => false,
+				),
 				'limit' => array(
 					'type' => 'integer',
 					'required' => false,
 				),
 				'minVotes' => array(
 					'type' => 'integer',
+					'required' => false,
+				),
+				'likedThreshold' => array(
+					'type' => 'number',
 					'required' => false,
 				),
 			),
@@ -487,6 +495,12 @@ class AVP_Gallery {
 		$html .= '        <header class="avp-ranking__header">';
 		$html .= '          <h1 class="avp-ranking__title">Fotos Más Votadas</h1>';
 		$html .= '          <p class="avp-ranking__subtitle">Libro Adiós Valparaíso</p>';
+		$html .= '          <div class="avp-ranking__views" role="tablist" aria-label="Ranking">';
+		$html .= '            <button class="avp-ranking__view is-active" type="button" data-ranking-view="best">100 mejores</button>';
+		$html .= '            <button class="avp-ranking__view" type="button" data-ranking-view="all">Todas</button>';
+		$html .= '            <button class="avp-ranking__view" type="button" data-ranking-view="worst">100 peores</button>';
+		$html .= '            <button class="avp-ranking__view" type="button" data-ranking-view="photographers">Fotógrafo más querido</button>';
+		$html .= '          </div>';
 		$html .= '          <button class="avp-ranking__refresh" type="button">';
 		$html .= '            <svg class="avp-ranking__refresh-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
 		$html .= '            Actualizar Galería';
@@ -640,17 +654,31 @@ class AVP_Gallery {
 		$folder = (string) $request->get_param('folder');
 		$folder = $folder !== '' ? sanitize_text_field($folder) : 'AdiosValparaiso';
 
-		$limit = intval($request->get_param('limit'));
-		if ($limit <= 0) {
-			$limit = 50;
+		$view = (string) $request->get_param('view');
+		$view = $view !== '' ? sanitize_key($view) : 'best';
+		if (!in_array($view, array('best', 'worst', 'all', 'photographers'), true)) {
+			$view = 'best';
 		}
-		if ($limit > 200) {
-			$limit = 200;
+
+		$limit = intval($request->get_param('limit'));
+		if ($limit < 0) {
+			$limit = 0;
+		}
+		// 0 => "sin límite" (cap saneado más abajo).
+		if ($limit === 0) {
+			$limit = 0;
+		} elseif ($limit > 5000) {
+			$limit = 5000;
 		}
 
 		$min_votes = intval($request->get_param('minVotes'));
 		if ($min_votes < 0) {
 			$min_votes = 0;
+		}
+
+		$liked_threshold = floatval($request->get_param('likedThreshold'));
+		if ($liked_threshold <= 0) {
+			$liked_threshold = 4.0;
 		}
 
 		$dir_info = array(
@@ -697,7 +725,85 @@ class AVP_Gallery {
 			);
 		}
 
-		usort($items, function ($a, $b) {
+		if ($view === 'photographers') {
+			$photographers = array();
+
+			foreach ($items as $it) {
+				$name = isset($it['name']) ? (string) $it['name'] : '';
+				$photographer = $name;
+				if (preg_match('/^(.+?)_\\d+\\.[a-z0-9]+$/i', $name, $m)) {
+					$photographer = (string) $m[1];
+				} else {
+					$photographer = preg_replace('/\\.[a-z0-9]+$/i', '', $photographer);
+				}
+				$photographer = trim((string) $photographer);
+				if ($photographer === '') {
+					$photographer = 'Desconocido';
+				}
+
+				$votes = isset($it['stats']['votes']) ? intval($it['stats']['votes']) : 0;
+				$avg = isset($it['stats']['avg']) ? floatval($it['stats']['avg']) : 0.0;
+
+				if (!isset($photographers[$photographer])) {
+					$photographers[$photographer] = array(
+						'photographer' => $photographer,
+						'likedPhotos' => 0,
+						'totalVotes' => 0,
+						'sumScore' => 0.0, // avg * votes
+						'photos' => 0,
+					);
+				}
+
+				$photographers[$photographer]['photos'] += 1;
+				$photographers[$photographer]['totalVotes'] += $votes;
+				$photographers[$photographer]['sumScore'] += ($avg * $votes);
+				if ($votes >= $min_votes && $avg >= $liked_threshold) {
+					$photographers[$photographer]['likedPhotos'] += 1;
+				}
+			}
+
+			$list = array_values($photographers);
+			foreach ($list as &$p) {
+				$p['avg'] = $p['totalVotes'] > 0 ? ($p['sumScore'] / $p['totalVotes']) : 0.0;
+				unset($p['sumScore']);
+			}
+			unset($p);
+
+			usort($list, function ($a, $b) {
+				$a_liked = isset($a['likedPhotos']) ? intval($a['likedPhotos']) : 0;
+				$b_liked = isset($b['likedPhotos']) ? intval($b['likedPhotos']) : 0;
+				if ($a_liked !== $b_liked) {
+					return $b_liked <=> $a_liked;
+				}
+				$a_votes = isset($a['totalVotes']) ? intval($a['totalVotes']) : 0;
+				$b_votes = isset($b['totalVotes']) ? intval($b['totalVotes']) : 0;
+				if ($a_votes !== $b_votes) {
+					return $b_votes <=> $a_votes;
+				}
+				$a_avg = isset($a['avg']) ? floatval($a['avg']) : 0.0;
+				$b_avg = isset($b['avg']) ? floatval($b['avg']) : 0.0;
+				if ($a_avg !== $b_avg) {
+					return ($b_avg <=> $a_avg);
+				}
+				return strcasecmp((string) $a['photographer'], (string) $b['photographer']);
+			});
+
+			// Solo devolvemos el top 1 (most liked) pero también mandamos top 100 por si quieres mostrarlo.
+			$top = array_slice($list, 0, 100);
+
+			return new WP_REST_Response(array(
+				'success' => true,
+				'data' => array(
+					'view' => $view,
+					'likedThreshold' => $liked_threshold,
+					'minVotes' => $min_votes,
+					'mostLiked' => !empty($top) ? $top[0] : null,
+					'photographers' => $top,
+				),
+			), 200);
+		}
+
+		usort($items, function ($a, $b) use ($view) {
 			$a_votes = isset($a['stats']['votes']) ? intval($a['stats']['votes']) : 0;
 			$b_votes = isset($b['stats']['votes']) ? intval($b['stats']['votes']) : 0;
 			$a_avg = isset($a['stats']['avg']) ? floatval($a['stats']['avg']) : 0.0;
@@ -709,14 +815,35 @@ class AVP_Gallery {
 				}
 				return $b_votes <=> $a_votes;
 			}
+
+			if ($view === 'worst') {
+				return ($a_avg <=> $b_avg);
+			}
+
+			// best / all default ordering: avg desc.
 			return ($b_avg <=> $a_avg);
 		});
+
+		// Defaults by view.
+		if ($limit === 0) {
+			if ($view === 'best' || $view === 'worst') {
+				$limit = 100;
+			} else {
+				$limit = count($items);
+			}
+		}
 
 		if (count($items) > $limit) {
 			$items = array_slice($items, 0, $limit);
 		}
 
-		return new WP_REST_Response(array('success' => true, 'data' => array('items' => $items)), 200);
+		return new WP_REST_Response(array(
+			'success' => true,
+			'data' => array(
+				'view' => $view,
+				'items' => $items,
+			),
+		), 200);
 	}
 
 	public static function rest_my_ratings($request) {

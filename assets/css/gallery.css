@@ -368,6 +368,39 @@
 	font-style: italic;
 }
 
+.avp-ranking__views {
+	margin-top: 16px;
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+}
+
+.avp-ranking__view {
+	border: 1px solid rgba(28, 25, 23, 0.14);
+	background: rgba(255, 255, 255, 0.85);
+	color: #1c1917;
+	border-radius: 999px;
+	padding: 10px 14px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	font-size: 12px;
+	cursor: pointer;
+	transition: all 160ms ease;
+}
+
+.avp-ranking__view:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 22px rgba(28, 25, 23, 0.08);
+}
+
+.avp-ranking__view.is-active {
+	background: #0c0a09;
+	border-color: #0c0a09;
+	color: #fff;
+}
+
 .avp-ranking__refresh {
 	margin-top: 16px;
 	display: inline-flex;
@@ -446,6 +479,11 @@
 .avp-ranking__row:hover {
 	transform: translateY(-1px);
 	box-shadow: 0 10px 26px rgba(28, 25, 23, 0.10);
+}
+
+.avp-ranking__row--photographer .avp-ranking__meta {
+	flex-wrap: wrap;
+	row-gap: 6px;
 }
 
 .avp-ranking__pos {

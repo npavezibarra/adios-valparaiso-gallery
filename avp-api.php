@@ -206,6 +206,8 @@ if ($op === 'ranking') {
 	$folder = isset($_REQUEST['folder']) ? sanitize_text_field(wp_unslash($_REQUEST['folder'])) : 'AdiosValparaiso';
 	$limit = isset($_REQUEST['limit']) ? intval($_REQUEST['limit']) : 50;
 	$min_votes = isset($_REQUEST['minVotes']) ? intval($_REQUEST['minVotes']) : 0;
+	$view = isset($_REQUEST['view']) ? sanitize_key(wp_unslash($_REQUEST['view'])) : 'best';
+	$liked_threshold = isset($_REQUEST['likedThreshold']) ? floatval($_REQUEST['likedThreshold']) : 4.0;
 
 	if (!class_exists('WP_REST_Request')) {
 		avp_api_send(500, array('success' => false, 'data' => array('message' => 'REST not available')));
@@ -214,6 +216,8 @@ if ($op === 'ranking') {
 	$req->set_param('folder', $folder);
 	$req->set_param('limit', $limit);
 	$req->set_param('minVotes', $min_votes);
+	$req->set_param('view', $view);
+	$req->set_param('likedThreshold', $liked_threshold);
 	$res = AVP_Gallery::rest_ranking($req);
 	if ($res instanceof WP_REST_Response) {
 		avp_api_send($res->get_status(), $res->get_data());
