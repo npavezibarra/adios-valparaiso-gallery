@@ -229,9 +229,8 @@
 		var starsEl = $(root, ".avp-gallery__stars");
 
 		var isLoggedIn = !!(window.AVP_GALLERY && window.AVP_GALLERY.isLoggedIn);
-		if (getForcedLogin()) {
-			isLoggedIn = true;
-		}
+		if (getForcedLogin()) isLoggedIn = true;
+		// No confies en isLoggedIn inicial (puede venir cacheado). Solo afecta UI, no permisos reales.
 		root.classList.toggle("is-logged-out", !isLoggedIn);
 
 		var idx = 0;
@@ -254,7 +253,8 @@
 					if (res && res.success && res.data && typeof res.data.isLoggedIn === "boolean") {
 						isLoggedIn = res.data.isLoggedIn;
 						root.classList.toggle("is-logged-out", !isLoggedIn);
-						setStars(starsEl, null, !isLoggedIn);
+						// Nunca deshabilites las estrellas solo por UI; el server decide.
+						setStars(starsEl, null, false);
 					}
 					return isLoggedIn;
 				})
@@ -296,11 +296,11 @@
 						isLoggedIn = res.data.isLoggedIn;
 						root.classList.toggle("is-logged-out", !isLoggedIn);
 					}
-					setStars(starsEl, res.data.userRating, !isLoggedIn);
+					setStars(starsEl, res.data.userRating, false);
 				})
 				.catch(function () {
 					avgEl.textContent = "No se pudo cargar la votación";
-					setStars(starsEl, null, !isLoggedIn);
+					setStars(starsEl, null, false);
 				});
 		}
 
@@ -332,7 +332,7 @@
 					if (msg.toLowerCase().indexOf("unauthorized") !== -1) {
 						isLoggedIn = false;
 						root.classList.toggle("is-logged-out", true);
-						setStars(starsEl, null, true);
+						setStars(starsEl, null, false);
 						avgEl.textContent = "Inicia sesión para evaluar";
 						return;
 					}
@@ -341,7 +341,8 @@
 		}
 
 		createStars(starsEl, onSelectRating);
-		setStars(starsEl, null, !isLoggedIn);
+		// Siempre habilitado; el servidor responderá 401 si no corresponde.
+		setStars(starsEl, null, false);
 
 		nextBtn.addEventListener("click", function () {
 			show(idx + 1);
