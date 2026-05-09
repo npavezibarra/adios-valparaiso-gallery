@@ -230,8 +230,8 @@
 
 		var isLoggedIn = !!(window.AVP_GALLERY && window.AVP_GALLERY.isLoggedIn);
 		if (getForcedLogin()) isLoggedIn = true;
-		// No confies en isLoggedIn inicial (puede venir cacheado). Solo afecta UI, no permisos reales.
-		root.classList.toggle("is-logged-out", !isLoggedIn);
+		// No confies en isLoggedIn inicial (puede venir cacheado). No mostramos el hint por defecto.
+		root.classList.remove("is-logged-out");
 
 		var idx = 0;
 		var current = null;
@@ -252,6 +252,7 @@
 				.then(function (res) {
 					if (res && res.success && res.data && typeof res.data.isLoggedIn === "boolean") {
 						isLoggedIn = res.data.isLoggedIn;
+						// Solo mostramos hint si el server confirma que NO hay sesion.
 						root.classList.toggle("is-logged-out", !isLoggedIn);
 						// Nunca deshabilites las estrellas solo por UI; el server decide.
 						setStars(starsEl, null, false);
