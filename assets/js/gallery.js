@@ -266,6 +266,40 @@
 	}
 
 	function initGallery(root) {
+		// Pantalla de bloqueo (si el shortcode decidió que no hay sesión).
+		if (root.classList.contains("avp-gallery--locked") || root.getAttribute("data-locked") === "1") {
+			var btn = root.querySelector(".avp-gallery__login-btn");
+			if (btn) {
+				btn.addEventListener("click", function () {
+					// Intento best-effort: abrir el modal flotante del plugin de cursos si existe.
+					// Si no existe, redirige al login estándar con redirect_to.
+					try {
+						// Patrones comunes:
+						if (window.VillegasCoursesLogin && typeof window.VillegasCoursesLogin.open === "function") {
+							window.VillegasCoursesLogin.open();
+							return;
+						}
+						if (window.villegasCourses && typeof window.villegasCourses.openLogin === "function") {
+							window.villegasCourses.openLogin();
+							return;
+						}
+						if (window.VCPCourses && typeof window.VCPCourses.openLogin === "function") {
+							window.VCPCourses.openLogin();
+							return;
+						}
+						// Trigger por evento (por si el plugin escucha).
+						window.dispatchEvent(new CustomEvent("villegas-courses:open-login"));
+						window.dispatchEvent(new CustomEvent("vcp:open-login"));
+					} catch (e) { }
+
+					var cfg = (window.AVP_GALLERY || {});
+					var loginUrl = cfg.loginUrl || (window.location.origin.replace(/\/$/, "") + "/wp-login.php?redirect_to=" + encodeURIComponent(window.location.href));
+					window.location.href = loginUrl;
+				});
+			}
+			return;
+		}
+
 		var imagesJson = root.getAttribute("data-images") || "[]";
 		var images;
 		try {

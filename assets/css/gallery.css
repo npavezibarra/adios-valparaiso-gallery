@@ -158,3 +158,54 @@
 	color: #fff;
 	border: 1px solid rgba(255, 255, 255, 0.12);
 }
+
+.avp-gallery__lock {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 18px;
+	background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.92));
+}
+
+.avp-gallery__lock-card {
+	width: min(520px, 92vw);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 14px;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(6px);
+	padding: 18px 18px 16px;
+	text-align: center;
+}
+
+.avp-gallery__lock-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.avp-gallery__lock-msg {
+	font-size: 14px;
+	opacity: 0.9;
+	line-height: 1.35;
+	margin-bottom: 14px;
+}
+
+.avp-gallery__login-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 10px 14px;
+	border-radius: 10px;
+	border: 1px solid rgba(255, 255, 255, 0.22);
+	background: rgba(255, 255, 255, 0.08);
+	color: #fff;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.avp-gallery__login-btn:hover {
+	background: rgba(255, 255, 255, 0.14);
+}

@@ -274,6 +274,37 @@ class AVP_Gallery {
 	}
 
 	public static function render_shortcode($atts) {
+		// Gate: la galería es solo para usuarios logeados.
+		// En producción algunos caches pueden mentir sobre el estado, pero el endpoint del plugin confirmará.
+		if (!is_user_logged_in()) {
+			wp_enqueue_style('avp-gallery');
+			wp_enqueue_script('avp-gallery');
+
+			$localize = array(
+				'ajaxUrl' => admin_url('admin-ajax.php'),
+				'directRatingUrl' => plugins_url('avp-rating-endpoint.php', AVP_GALLERY_PLUGIN_FILE),
+				'nonce' => wp_create_nonce('avp_gallery_nonce'),
+				'isLoggedIn' => false,
+				'restUrl' => rest_url('avp/v1', 'relative'),
+				'restNonce' => wp_create_nonce('wp_rest'),
+				'loginUrl' => wp_login_url((string) get_permalink()),
+				'registerUrl' => function_exists('wp_registration_url') ? wp_registration_url() : wp_login_url((string) get_permalink()),
+			);
+			wp_add_inline_script('avp-gallery', 'window.AVP_GALLERY = ' . wp_json_encode($localize) . ';', 'before');
+
+			$html  = '<div class="avp-gallery avp-gallery--locked" data-locked="1">';
+			$html .= '  <div class="avp-gallery__lock">';
+			$html .= '    <div class="avp-gallery__lock-card">';
+			$html .= '      <div class="avp-gallery__lock-title">Acceso restringido</div>';
+			$html .= '      <div class="avp-gallery__lock-msg">Esta galería es solo para usuarios con sesión iniciada.</div>';
+			$html .= '      <button class="avp-gallery__login-btn" type="button">INGRESAR</button>';
+			$html .= '    </div>';
+			$html .= '  </div>';
+			$html .= '</div>';
+
+			return $html;
+		}
+
 		$atts = shortcode_atts(
 			array(
 				'source' => 'uploads',
