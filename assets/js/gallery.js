@@ -120,12 +120,18 @@
 			if (action === "avp_list_images") {
 				var url = cfg.restUrl.replace(/\/$/, "") + "/list-images?folder=" + encodeURIComponent(payload.folder || "");
 				url = withForcedParam(url);
-				return fetch(url, { credentials: "same-origin" }).then(function (r) { return r.json(); });
+				return fetch(url, {
+					credentials: "same-origin",
+					headers: { "X-WP-Nonce": cfg.restNonce || "" },
+				}).then(function (r) { return r.json(); });
 			}
 			if (action === "avp_get_rating") {
 				var url2 = cfg.restUrl.replace(/\/$/, "") + "/rating?imageKey=" + encodeURIComponent(payload.imageKey || "");
 				url2 = withForcedParam(url2);
-				return fetch(url2, { credentials: "same-origin" }).then(function (r) { return r.json(); });
+				return fetch(url2, {
+					credentials: "same-origin",
+					headers: { "X-WP-Nonce": cfg.restNonce || "" },
+				}).then(function (r) { return r.json(); });
 			}
 			if (action === "avp_set_rating") {
 				var url3 = cfg.restUrl.replace(/\/$/, "") + "/rating";
@@ -251,7 +257,10 @@
 			if (!cfg.restUrl) return Promise.resolve(isLoggedIn);
 			var url = cfg.restUrl.replace(/\/$/, "") + "/me";
 			url = withForcedParam(url);
-			return fetch(url, { credentials: "same-origin" })
+			return fetch(url, {
+				credentials: "same-origin",
+				headers: { "X-WP-Nonce": cfg.restNonce || "" },
+			})
 				.then(function (r) { return r.json(); })
 				.then(function (res) {
 					if (res && res.success && res.data && typeof res.data.isLoggedIn === "boolean") {

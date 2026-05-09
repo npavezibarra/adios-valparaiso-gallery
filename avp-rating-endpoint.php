@@ -18,6 +18,44 @@ require_once $wp_load;
 header('Content-Type: application/json; charset=utf-8');
 nocache_headers();
 
+function avp_same_origin() {
+	$normalize_host = function ($host) {
+		$host = strtolower((string) $host);
+		$host = preg_replace('/^www\./', '', $host);
+		return $host;
+	};
+
+	$allowed_hosts = array();
+	$home = wp_parse_url(home_url());
+	$site = wp_parse_url(site_url());
+	if (!empty($home['host'])) {
+		$allowed_hosts[] = $normalize_host($home['host']);
+	}
+	if (!empty($site['host'])) {
+		$allowed_hosts[] = $normalize_host($site['host']);
+	}
+	$allowed_hosts = array_values(array_unique(array_filter($allowed_hosts)));
+	if (!$allowed_hosts) {
+		return false;
+	}
+
+	$origin = isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : '';
+	if ($origin) {
+		$o = wp_parse_url($origin);
+		$origin_host = isset($o['host']) ? $o['host'] : '';
+		return $origin_host && in_array($normalize_host($origin_host), $allowed_hosts, true);
+	}
+
+	$referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
+	if ($referer) {
+		$r = wp_parse_url($referer);
+		$ref_host = isset($r['host']) ? $r['host'] : '';
+		return $ref_host && in_array($normalize_host($ref_host), $allowed_hosts, true);
+	}
+
+	return false;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	http_response_code(405);
 	echo wp_json_encode(array(
@@ -33,7 +71,11 @@ $forced_login = isset($_POST['avp_logged_in']) && $_POST['avp_logged_in'] === '1
 // hay instalaciones que bloquean sesiones/REST/admin-ajax de forma inconsistente.
 // No usar esto en produccion.
 $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
-if (!$forced_login && (!$nonce || !wp_verify_nonce($nonce, 'avp_gallery_nonce'))) {
+if (
+	!$forced_login
+	&& (!$nonce || !wp_verify_nonce($nonce, 'avp_gallery_nonce'))
+	&& !(is_user_logged_in() && avp_same_origin())
+) {
 	http_response_code(403);
 	echo wp_json_encode(array(
 		'success' => false,
