@@ -794,8 +794,8 @@
 			if (!list) return;
 			list.innerHTML = "";
 
-			var mostLiked = payload && payload.mostLiked ? payload.mostLiked : null;
-			if (!mostLiked) {
+			var photographers = payload && payload.photographers ? payload.photographers : null;
+			if (!photographers || !photographers.length) {
 				var empty = document.createElement("div");
 				empty.className = "avp-ranking__empty";
 				empty.textContent = "Aún no hay votos suficientes para calcular el fotógrafo más querido.";
@@ -803,19 +803,30 @@
 				return;
 			}
 
-			var row = document.createElement("div");
-			row.className = "avp-ranking__row avp-ranking__row--photographer";
-			row.innerHTML =
-				'<div class="avp-ranking__pos">#1</div>' +
-				'<div class="avp-ranking__body">' +
-				'  <div class="avp-ranking__name">' + String(mostLiked.photographer || "") + '</div>' +
-				'  <div class="avp-ranking__meta">' +
-				'    <div class="avp-ranking__score">Fotos con promedio ≥ ' + String((payload && payload.likedThreshold) ? payload.likedThreshold : 4.0) + ': ' + String(mostLiked.likedPhotos || 0) + '</div>' +
-				'    <div class="avp-ranking__score">Votos totales: ' + String(mostLiked.totalVotes || 0) + '</div>' +
-				'    <div class="avp-ranking__score">Promedio ponderado: ' + (typeof mostLiked.avg === "number" ? mostLiked.avg.toFixed(2) : String(mostLiked.avg || "0")) + '</div>' +
-				'  </div>' +
-				'</div>';
-			list.appendChild(row);
+			var threshold = (payload && payload.likedThreshold) ? payload.likedThreshold : 4.0;
+
+			photographers.forEach(function (p, idx) {
+				var row = document.createElement("div");
+				row.className = "avp-ranking__row avp-ranking__row--photographer";
+
+				var safeName = document.createElement("div");
+				safeName.textContent = p && p.photographer ? String(p.photographer) : "";
+
+				var avg = (p && typeof p.avg === "number") ? p.avg : (parseFloat(String(p && p.avg ? p.avg : "0")) || 0);
+
+				row.innerHTML =
+					'<div class="avp-ranking__pos">#' + (idx + 1) + '</div>' +
+					'<div class="avp-ranking__body">' +
+					'  <div class="avp-ranking__name">' + safeName.innerHTML + '</div>' +
+					'  <div class="avp-ranking__meta">' +
+					'    <div class="avp-ranking__score">Fotos con promedio ≥ ' + String(threshold) + ': ' + String(p && p.likedPhotos ? p.likedPhotos : 0) + '</div>' +
+					'    <div class="avp-ranking__score">Votos totales: ' + String(p && p.totalVotes ? p.totalVotes : 0) + '</div>' +
+					'    <div class="avp-ranking__score">Promedio ponderado: ' + avg.toFixed(2) + '</div>' +
+					'  </div>' +
+					'</div>';
+
+				list.appendChild(row);
+			});
 		}
 
 		function load() {
