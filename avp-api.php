@@ -153,6 +153,41 @@ if ($op === 'set_rating') {
 	));
 }
 
+if ($op === 'my_ratings') {
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+		avp_api_send(405, array('success' => false, 'data' => array('message' => 'Method not allowed')));
+	}
+
+	if (!$is_logged_in) {
+		avp_api_send(401, array('success' => false, 'data' => array('message' => 'Unauthorized')));
+	}
+
+	if ($nonce !== '' && !$has_valid_nonce) {
+		avp_api_send(403, array('success' => false, 'data' => array('message' => 'Nonce invalido')));
+	}
+
+	$image_keys = array();
+	if (isset($_POST['imageKeys'])) {
+		$raw = wp_unslash($_POST['imageKeys']);
+		if (is_string($raw)) {
+			$decoded = json_decode($raw, true);
+			if (is_array($decoded)) {
+				$image_keys = $decoded;
+			}
+		} elseif (is_array($raw)) {
+			$image_keys = $raw;
+		}
+	}
+
+	if (empty($image_keys) || !is_array($image_keys)) {
+		avp_api_send(400, array('success' => false, 'data' => array('message' => 'Missing imageKeys')));
+	}
+
+	$user_id = get_current_user_id();
+	$map = AVP_Gallery_DB::get_user_ratings_map($user_id, $image_keys);
+	avp_api_send(200, array('success' => true, 'data' => array('ratings' => $map)));
+}
+
 if ($op === 'list_images') {
 	$folder = isset($_REQUEST['folder']) ? sanitize_text_field(wp_unslash($_REQUEST['folder'])) : 'AdiosValparaiso';
 	if (!class_exists('WP_REST_Request')) {

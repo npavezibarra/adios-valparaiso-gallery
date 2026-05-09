@@ -96,12 +96,19 @@
 				action === "avp_get_rating" ? "get_rating" :
 				action === "avp_list_images" ? "list_images" :
 				action === "avp_me" ? "me" :
+				action === "avp_my_ratings" ? "my_ratings" :
 				action === "avp_ranking" ? "ranking" : "");
 			body.set("nonce", cfg.nonce || "");
 			if (getForcedLogin()) body.set("avp_logged_in", "1");
-			Object.keys(payload || {}).forEach(function (k) { body.set(k, payload[k]); });
+			Object.keys(payload || {}).forEach(function (k) {
+				if (action === "avp_my_ratings" && k === "imageKeys" && Array.isArray(payload[k])) {
+					body.set("imageKeys", JSON.stringify(payload[k]));
+					return;
+				}
+				body.set(k, payload[k]);
+			});
 
-			var method = (action === "avp_set_rating") ? "POST" : "GET";
+			var method = (action === "avp_set_rating" || action === "avp_my_ratings") ? "POST" : "GET";
 			var finalUrl = apiUrl;
 			var fetchOpts = {
 				method: method,
@@ -182,6 +189,22 @@
 				return fetch(urlRank, {
 					credentials: "same-origin",
 					headers: { "X-WP-Nonce": cfg.restNonce || "" },
+				}).then(function (r) { return r.json(); });
+			}
+			if (action === "avp_my_ratings") {
+				var urlMine = cfg.restUrl.replace(/\/$/, "") + "/my-ratings";
+				urlMine = withForcedParam(urlMine);
+				return fetch(urlMine, {
+					method: "POST",
+					credentials: getForcedLogin() ? "omit" : "same-origin",
+					headers: {
+						"Content-Type": "application/json",
+						"X-WP-Nonce": cfg.restNonce || "",
+						"X-AVP-Nonce": cfg.nonce || "",
+					},
+					body: JSON.stringify({
+						imageKeys: payload.imageKeys || [],
+					}),
 				}).then(function (r) { return r.json(); });
 			}
 			if (action === "avp_get_rating") {
@@ -445,6 +468,7 @@
 		var filenameEl = $(root, ".avp-gallery__filename");
 		var avgEl = $(root, ".avp-gallery__avg");
 		var starsEl = $(root, ".avp-gallery__stars");
+		var filterSelect = $(root, ".avp-gallery__filter-select");
 
 		var isLoggedIn = !!(window.AVP_GALLERY && window.AVP_GALLERY.isLoggedIn);
 		if (getForcedLogin()) isLoggedIn = true;
@@ -453,6 +477,10 @@
 
 		var idx = 0;
 		var current = null;
+		var allImages = images.slice();
+		var visibleImages = images.slice();
+		var filterMode = "all";
+		var myRatings = {};
 
 		function ensureAuthState() {
 			var cfg = (window.AVP_GALLERY || {});
@@ -478,7 +506,11 @@
 		}
 
 		function ensureImagesLoaded() {
-			if (images.length) return Promise.resolve(images);
+			if (images.length) {
+				allImages = images.slice();
+				visibleImages = images.slice();
+				return Promise.resolve(images);
+			}
 			if (source !== "r2") return Promise.resolve(images);
 
 			avgEl.textContent = "Cargando imágenes…";
@@ -489,13 +521,77 @@
 						throw new Error(msg);
 					}
 					images = res.data.images || [];
+					allImages = images.slice();
+					visibleImages = images.slice();
 					return images;
 				})
 				.catch(function (e) {
 					avgEl.textContent = e && e.message ? e.message : "No se pudieron cargar imágenes";
 					images = [];
+					allImages = [];
+					visibleImages = [];
 					return images;
 				});
+		}
+
+		function ensureMyRatingsLoaded() {
+			if (!isLoggedIn) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+			if (!allImages.length) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+
+			var keys = allImages.map(function (im) { return im.key; }).filter(Boolean);
+			if (!keys.length) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+
+			return ajax("avp_my_ratings", { imageKeys: keys, imageKeysJson: JSON.stringify(keys) })
+				.then(function (res) {
+					if (!res || !res.success) throw new Error("failed");
+					myRatings = (res.data && res.data.ratings) ? res.data.ratings : {};
+					return myRatings;
+				})
+				.catch(function () {
+					myRatings = {};
+					return myRatings;
+				});
+		}
+
+		function applyFilter() {
+			if (!allImages.length) {
+				visibleImages = [];
+				return;
+			}
+			if (filterMode === "voted") {
+				visibleImages = allImages.filter(function (im) {
+					return Object.prototype.hasOwnProperty.call(myRatings || {}, im.key);
+				});
+				return;
+			}
+			if (filterMode === "unvoted") {
+				visibleImages = allImages.filter(function (im) {
+					return !Object.prototype.hasOwnProperty.call(myRatings || {}, im.key);
+				});
+				return;
+			}
+			visibleImages = allImages.slice();
+		}
+
+		function showByVisibleIndex(i) {
+			if (!visibleImages.length) return;
+			if (i < 0) i = visibleImages.length - 1;
+			if (i >= visibleImages.length) i = 0;
+			idx = i;
+			current = visibleImages[idx];
+			imgEl.src = current.url;
+			counterEl.textContent = (idx + 1) + " / " + visibleImages.length;
+			filenameEl.textContent = current.name || "";
+			loadRatingsForCurrent();
 		}
 
 		function loadRatingsForCurrent() {
@@ -519,17 +615,19 @@
 		}
 
 		function show(i) {
-			ensureImagesLoaded().then(function () {
-				if (!images.length) return;
-				if (i < 0) i = images.length - 1;
-				if (i >= images.length) i = 0;
-				idx = i;
-				current = images[idx];
-				imgEl.src = current.url;
-				counterEl.textContent = (idx + 1) + " / " + images.length;
-				filenameEl.textContent = current.name || "";
-				loadRatingsForCurrent();
-			});
+			ensureImagesLoaded()
+				.then(ensureMyRatingsLoaded)
+				.then(function () {
+					applyFilter();
+					if (!visibleImages.length) {
+						avgEl.textContent = "No hay imágenes para este filtro";
+						counterEl.textContent = "";
+						filenameEl.textContent = "";
+						imgEl.removeAttribute("src");
+						return;
+					}
+					showByVisibleIndex(i);
+				});
 		}
 
 		function onSelectRating(value) {
@@ -540,6 +638,20 @@
 					if (!res || !res.success) throw new Error("failed");
 					avgEl.textContent = formatAvg(res.data.stats);
 					setStars(starsEl, res.data.userRating, false);
+					if (isLoggedIn) {
+						if (res.data.userRating === null || typeof res.data.userRating === "undefined") {
+							try { delete myRatings[current.key]; } catch (e) { }
+						} else {
+							myRatings[current.key] = res.data.userRating;
+						}
+						applyFilter();
+						if (visibleImages.length) {
+							var pos = visibleImages.findIndex(function (im) { return im.key === current.key; });
+							showByVisibleIndex(pos === -1 ? 0 : pos);
+						} else {
+							showByVisibleIndex(0);
+						}
+					}
 				})
 				.catch(function (e) {
 					var msg = (e && e.message) ? e.message : "";
@@ -559,30 +671,41 @@
 		setStars(starsEl, null, false);
 
 		nextBtn.addEventListener("click", function () {
-			show(idx + 1);
+			showByVisibleIndex(idx + 1);
 		});
 		prevBtn.addEventListener("click", function () {
-			show(idx - 1);
+			showByVisibleIndex(idx - 1);
 		});
 
 		root.addEventListener("click", function (e) {
 			if (e.target && (e.target.closest(".avp-gallery__nav") || e.target.closest(".avp-gallery__stars"))) {
 				return;
 			}
-			show(idx + 1);
+			showByVisibleIndex(idx + 1);
 		});
 
 		document.addEventListener("keydown", function (e) {
 			if (!root.isConnected) return;
-			if (e.key === "ArrowRight") show(idx + 1);
-			if (e.key === "ArrowLeft") show(idx - 1);
+			if (e.key === "ArrowRight") showByVisibleIndex(idx + 1);
+			if (e.key === "ArrowLeft") showByVisibleIndex(idx - 1);
 		});
+
+		if (filterSelect) {
+			filterSelect.addEventListener("change", function () {
+				filterMode = filterSelect.value || "all";
+				applyFilter();
+				showByVisibleIndex(0);
+			});
+		}
 
 		ensureAuthState().then(function () {
 			return ensureImagesLoaded();
 		}).then(function () {
-			if (!images.length) return;
-			show(0);
+			return ensureMyRatingsLoaded();
+		}).then(function () {
+			applyFilter();
+			if (!visibleImages.length) return;
+			showByVisibleIndex(0);
 		});
 	}
 

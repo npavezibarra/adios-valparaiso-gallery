@@ -60,6 +60,33 @@ class AVP_Gallery {
 			),
 		));
 
+		register_rest_route('avp/v1', '/my-ratings', array(
+			'methods' => 'POST',
+			'permission_callback' => function () {
+				if (self::is_logged_in_request()) {
+					return true;
+				}
+				$nonce = '';
+				if (function_exists('getallheaders')) {
+					$headers = getallheaders();
+					if (isset($headers['X-AVP-Nonce'])) {
+						$nonce = (string) $headers['X-AVP-Nonce'];
+					}
+				}
+				if ($nonce === '' && isset($_REQUEST['avp_nonce'])) {
+					$nonce = (string) $_REQUEST['avp_nonce'];
+				}
+				return $nonce ? wp_verify_nonce($nonce, 'avp_gallery_nonce') : false;
+			},
+			'callback' => array(__CLASS__, 'rest_my_ratings'),
+			'args' => array(
+				'imageKeys' => array(
+					'type' => 'array',
+					'required' => true,
+				),
+			),
+		));
+
 		register_rest_route('avp/v1', '/rating', array(
 			'methods' => 'GET',
 			'permission_callback' => '__return_true',
@@ -399,6 +426,14 @@ class AVP_Gallery {
 		$html .= '      <div class="avp-gallery__hud">';
 		$html .= '        <div class="avp-gallery__meta">';
 		$html .= '          <div class="avp-gallery__counter"></div>';
+		$html .= '          <div class="avp-gallery__filter">';
+		$html .= '            <label class="avp-gallery__filter-label">Mostrar</label>';
+		$html .= '            <select class="avp-gallery__filter-select" aria-label="Filtrar imágenes">';
+		$html .= '              <option value="all">TODAS</option>';
+		$html .= '              <option value="voted">CON VOTO</option>';
+		$html .= '              <option value="unvoted">SIN VOTO</option>';
+		$html .= '            </select>';
+		$html .= '          </div>';
 		$html .= '          <div class="avp-gallery__filename"></div>';
 		$html .= '        </div>';
 		$html .= '        <div class="avp-gallery__rating">';
@@ -646,6 +681,31 @@ class AVP_Gallery {
 		}
 
 		return new WP_REST_Response(array('success' => true, 'data' => array('items' => $items)), 200);
+	}
+
+	public static function rest_my_ratings($request) {
+		if (!self::is_logged_in_request()) {
+			return new WP_REST_Response(array('success' => false, 'data' => array('message' => 'Unauthorized')), 401);
+		}
+
+		$user_id = get_current_user_id();
+		if (!$user_id) {
+			$user_id = 0;
+		}
+
+		$image_keys = $request->get_param('imageKeys');
+		if (!is_array($image_keys) || empty($image_keys)) {
+			return new WP_REST_Response(array('success' => false, 'data' => array('message' => 'Missing imageKeys')), 400);
+		}
+
+		$map = AVP_Gallery_DB::get_user_ratings_map($user_id, $image_keys);
+
+		return new WP_REST_Response(array(
+			'success' => true,
+			'data' => array(
+				'ratings' => $map,
+			),
+		), 200);
 	}
 
 	public static function rest_me($request) {

@@ -128,6 +128,51 @@ class AVP_Gallery_DB {
 		return intval($rating);
 	}
 
+	/**
+	 * Returns a map of image_key => rating for a user, for many keys.
+	 *
+	 * @param int $user_id
+	 * @param string[] $image_keys
+	 * @return array<string,int>
+	 */
+	public static function get_user_ratings_map($user_id, $image_keys) {
+		global $wpdb;
+		$table = self::table_name();
+
+		$user_id = intval($user_id);
+		if ($user_id <= 0) {
+			return array();
+		}
+
+		if (!is_array($image_keys) || empty($image_keys)) {
+			return array();
+		}
+
+		$image_keys = array_values(array_unique(array_filter(array_map(function ($k) {
+			return sanitize_text_field((string) $k);
+		}, $image_keys))));
+
+		if (empty($image_keys)) {
+			return array();
+		}
+
+		$placeholders = implode(',', array_fill(0, count($image_keys), '%s'));
+		$sql = "SELECT image_key, rating FROM {$table} WHERE user_id = %d AND image_key IN ({$placeholders})";
+		$params = array_merge(array($user_id), $image_keys);
+		$rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+
+		$map = array();
+		foreach ((array) $rows as $row) {
+			$key = isset($row['image_key']) ? (string) $row['image_key'] : '';
+			if ($key === '') {
+				continue;
+			}
+			$map[$key] = isset($row['rating']) ? intval($row['rating']) : 0;
+		}
+
+		return $map;
+	}
+
 	public static function set_user_rating($image_key, $image_path, $user_id, $rating) {
 		global $wpdb;
 		$table = self::table_name();
