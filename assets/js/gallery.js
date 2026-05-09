@@ -824,9 +824,241 @@
 		}
 	}
 
+	function initGalleryModes(panel) {
+		if (!panel) return;
+		var slider = panel.querySelector(".avp-gallery");
+		var thumbs = panel.querySelector(".avp-thumbs");
+		var buttons = panel.querySelectorAll(".avp-gallery-modes__btn");
+		if (!slider || !thumbs || !buttons.length) return;
+
+		function setMode(mode) {
+			var isThumbs = mode === "thumbs";
+			thumbs.hidden = !isThumbs;
+			slider.hidden = isThumbs;
+			buttons.forEach(function (b) {
+				b.classList.toggle("is-active", (b.dataset.galleryMode || "") === mode);
+			});
+			panel.dataset.galleryMode = mode;
+
+			if (isThumbs && typeof thumbs.__avpEnsureInit === "function") {
+				thumbs.__avpEnsureInit();
+			}
+		}
+
+		buttons.forEach(function (b) {
+			b.addEventListener("click", function () {
+				setMode(b.dataset.galleryMode || "slider");
+			});
+		});
+
+		setMode("slider");
+	}
+
+	function initThumbs(root) {
+		var imagesJson = root.getAttribute("data-images") || "[]";
+		var images;
+		try { images = JSON.parse(imagesJson); } catch (e) { images = []; }
+		var folder = root.getAttribute("data-folder") || "AdiosValparaiso";
+		var source = root.getAttribute("data-source") || "uploads";
+
+		var grid = root.querySelector(".avp-thumbs__grid");
+		var sentinel = root.querySelector(".avp-thumbs__sentinel");
+		var statusEl = root.querySelector(".avp-thumbs__status");
+		var filterSelect = root.querySelector(".avp-thumbs__filter-select");
+
+		var isLoggedIn = !!(window.AVP_GALLERY && window.AVP_GALLERY.isLoggedIn);
+		if (getForcedLogin()) isLoggedIn = true;
+
+		var allImages = images.slice();
+		var visibleImages = images.slice();
+		var myRatings = {};
+		var filterMode = "all";
+
+		var pageSize = 24;
+		var renderedCount = 0;
+		var loading = false;
+		var observer = null;
+
+		function setStatus(text) {
+			if (!statusEl) return;
+			statusEl.textContent = text || "";
+		}
+
+		function ensureImagesLoaded() {
+			if (allImages.length) return Promise.resolve(allImages);
+			if (source !== "r2") return Promise.resolve(allImages);
+
+			setStatus("Cargando imágenes…");
+			return ajax("avp_list_images", { folder: folder })
+				.then(function (res) {
+					if (!res || !res.success) throw new Error("failed");
+					allImages = (res.data && res.data.images) ? res.data.images : [];
+					return allImages;
+				})
+				.catch(function () {
+					allImages = [];
+					return allImages;
+				});
+		}
+
+		function ensureMyRatingsLoaded() {
+			if (!isLoggedIn) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+			if (!allImages.length) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+			var keys = allImages.map(function (im) { return im.key; }).filter(Boolean);
+			if (!keys.length) {
+				myRatings = {};
+				return Promise.resolve(myRatings);
+			}
+			return ajax("avp_my_ratings", { imageKeys: keys })
+				.then(function (res) {
+					if (!res || !res.success) throw new Error("failed");
+					myRatings = (res.data && res.data.ratings) ? res.data.ratings : {};
+					return myRatings;
+				})
+				.catch(function () {
+					myRatings = {};
+					return myRatings;
+				});
+		}
+
+		function applyFilter() {
+			if (filterMode === "voted") {
+				visibleImages = allImages.filter(function (im) {
+					return Object.prototype.hasOwnProperty.call(myRatings || {}, im.key);
+				});
+			} else if (filterMode === "unvoted") {
+				visibleImages = allImages.filter(function (im) {
+					return !Object.prototype.hasOwnProperty.call(myRatings || {}, im.key);
+				});
+			} else {
+				visibleImages = allImages.slice();
+			}
+			renderedCount = 0;
+			if (grid) grid.innerHTML = "";
+		}
+
+		function createStarButton(value, currentValue, onClick) {
+			var btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "avp-thumbs__star" + (value <= currentValue ? " is-on" : "");
+			btn.setAttribute("aria-label", value + " estrellas");
+			btn.textContent = "★";
+			btn.addEventListener("click", function (e) {
+				e.preventDefault();
+				e.stopPropagation();
+				onClick(value);
+			});
+			return btn;
+		}
+
+		function renderOneCard(item) {
+			var card = document.createElement("div");
+			card.className = "avp-thumbs__card";
+			card.setAttribute("role", "listitem");
+
+			var safeName = document.createElement("div");
+			safeName.textContent = (item && item.name) ? String(item.name) : "";
+
+			var currentRating = Object.prototype.hasOwnProperty.call(myRatings || {}, item.key) ? (parseInt(myRatings[item.key], 10) || 0) : 0;
+
+			card.innerHTML =
+				'<div class="avp-thumbs__img"><img loading="lazy" alt="" src="' + (item.url || "") + '"></div>' +
+				'<div class="avp-thumbs__body">' +
+				'  <div class="avp-thumbs__title">' + safeName.innerHTML + '</div>' +
+				'  <div class="avp-thumbs__rating" aria-label="Tu evaluación"></div>' +
+				'</div>';
+
+			var ratingEl = card.querySelector(".avp-thumbs__rating");
+			if (ratingEl) {
+				ratingEl.innerHTML = "";
+				for (var i = 1; i <= 5; i++) {
+					ratingEl.appendChild(createStarButton(i, currentRating, function (val) {
+						setStatus("Guardando…");
+						ajax("avp_set_rating", { imageKey: item.key, imageUrl: item.url, rating: String(val) })
+							.then(function (res) {
+								if (!res || !res.success) throw new Error("failed");
+								myRatings[item.key] = res.data.userRating;
+								applyFilter();
+								renderMore();
+								setStatus("");
+							})
+							.catch(function () {
+								setStatus("No se pudo guardar");
+								setTimeout(function () { setStatus(""); }, 1200);
+							});
+					}));
+				}
+			}
+
+			return card;
+		}
+
+		function renderMore() {
+			if (!grid) return;
+			if (loading) return;
+			loading = true;
+
+			var next = visibleImages.slice(renderedCount, renderedCount + pageSize);
+			next.forEach(function (item) {
+				grid.appendChild(renderOneCard(item));
+			});
+			renderedCount += next.length;
+
+			if (renderedCount >= visibleImages.length) {
+				setStatus(visibleImages.length ? "" : "No hay imágenes para este filtro");
+			}
+
+			loading = false;
+		}
+
+		function setupObserver() {
+			if (!sentinel) return;
+			if (observer) observer.disconnect();
+			observer = new IntersectionObserver(function (entries) {
+				entries.forEach(function (e) {
+					if (e.isIntersecting) renderMore();
+				});
+			}, { rootMargin: "600px 0px" });
+			observer.observe(sentinel);
+		}
+
+		function initNow() {
+			return ensureImagesLoaded()
+				.then(function () { return ensureMyRatingsLoaded(); })
+				.then(function () {
+					applyFilter();
+					renderMore();
+					setupObserver();
+					setStatus("");
+				});
+		}
+
+		root.__avpEnsureInit = function () {
+			if (root.dataset.inited === "1") return;
+			root.dataset.inited = "1";
+			initNow();
+		};
+
+		if (filterSelect) {
+			filterSelect.addEventListener("change", function () {
+				filterMode = filterSelect.value || "all";
+				applyFilter();
+				renderMore();
+			});
+		}
+	}
+
 	document.addEventListener("DOMContentLoaded", function () {
 		document.querySelectorAll(".avp-gallery-shell").forEach(initShell);
 		document.querySelectorAll(".avp-gallery").forEach(initGallery);
 		document.querySelectorAll(".avp-ranking").forEach(initRanking);
+		document.querySelectorAll(".avp-gallery-shell__panel[data-panel='gallery']").forEach(initGalleryModes);
+		document.querySelectorAll(".avp-thumbs").forEach(initThumbs);
 	});
 })();

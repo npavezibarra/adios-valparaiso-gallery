@@ -417,6 +417,10 @@ class AVP_Gallery {
 		$html .= '  </nav>';
 
 		$html .= '  <div class="avp-gallery-shell__panel is-active" data-panel="gallery">';
+		$html .= '    <div class="avp-gallery-modes" role="tablist" aria-label="Tipo de galería">';
+		$html .= '      <button class="avp-gallery-modes__btn is-active" type="button" data-gallery-mode="slider">1 FOTO</button>';
+		$html .= '      <button class="avp-gallery-modes__btn" type="button" data-gallery-mode="thumbs">MINIATURAS</button>';
+		$html .= '    </div>';
 		$html .= '    <div class="avp-gallery" data-images="' . esc_attr(wp_json_encode($payload_images)) . '" data-source="' . esc_attr($source) . '" data-folder="' . esc_attr($folder) . '">';
 		$html .= '      <button class="avp-gallery__nav avp-gallery__nav--prev" type="button" aria-label="Previous">‹</button>';
 		$html .= '      <button class="avp-gallery__nav avp-gallery__nav--next" type="button" aria-label="Next">›</button>';
@@ -443,6 +447,21 @@ class AVP_Gallery {
 		$html .= '        </div>';
 		$html .= '      </div>';
 		$html .= '    </div>';
+		$html .= '    <section class="avp-thumbs" data-images="' . esc_attr(wp_json_encode($payload_images)) . '" data-source="' . esc_attr($source) . '" data-folder="' . esc_attr($folder) . '" hidden>';
+		$html .= '      <div class="avp-thumbs__toolbar">';
+		$html .= '        <div class="avp-thumbs__filter">';
+		$html .= '          <label class="avp-thumbs__filter-label">Mostrar</label>';
+		$html .= '          <select class="avp-thumbs__filter-select" aria-label="Filtrar miniaturas">';
+		$html .= '            <option value="all">TODAS</option>';
+		$html .= '            <option value="voted">CON VOTO</option>';
+		$html .= '            <option value="unvoted">SIN VOTO</option>';
+		$html .= '          </select>';
+		$html .= '        </div>';
+		$html .= '        <div class="avp-thumbs__status" aria-live="polite"></div>';
+		$html .= '      </div>';
+		$html .= '      <div class="avp-thumbs__grid" role="list"></div>';
+		$html .= '      <div class="avp-thumbs__sentinel" aria-hidden="true"></div>';
+		$html .= '    </section>';
 		$html .= '  </div>';
 
 		$html .= '  <div class="avp-gallery-shell__panel" data-panel="ranking">';
